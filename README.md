@@ -63,7 +63,7 @@
 - **结局占比分解图**：`outcome_breakdown.png`，swish / rim-in / board-in 占比随参数的变化
 - **轨迹对比**：比较真空瞄准 vs 真实飞行轨迹，并包含罚球与三分球对比
 - **单元测试与自检**：`test_core.py` / `test_collision.py` / `test_experiment.py`，加上各脚本自带的无头自检（`--check`、`--selfcheck`、`python physics.py`、`python collision.py`）
-- **模型验证**：报告一致率、Wilson 95% 置信区间、Cohen's kappa、MCC/precision/recall/F1 以及多分类混淆矩阵
+- **模型验证**：报告一致率、Wilson 95% 置信区间、Cohen's kappa、MCC/precision/recall/F1 以及多分类混淆矩阵；对 `data_validation/valid_data.csv`（305 行）跑 `python validation.py data_validation/valid_data.csv` 的逐发预测与指标已权威记录在 [data_validation/model_validation_results.md](data_validation/model_validation_results.md)（当前 154/305 = 50.49%、κ = 0.012、模型预测 74 made / 231 miss、made 类 recall 24.84%——因输入是 `data_prep.py` 假设合成，**不是经验验证结论**）
 
 ## 4. ⚠️ 两套模型常数不可混用
 
@@ -126,7 +126,7 @@ omega = (0, 0, +omega)
 | `test_core.py` | 核心物理/碰撞/模拟的单元测试（无第三方依赖） |
 | `test_collision.py` | 碰撞几何与速度响应的专项测试 |
 | `test_experiment.py` | 扫描 CSV 输出与配置元数据的可复现性测试 |
-| `data_validation/` | 第一阶段验证数据暂存区：`DATA_SPECIFICATION.md`（数据规范）、`extract.py`（SportVU 轨迹抽取）、`data_prep.py`（出手参数合成器）、原始数据集 `basketball_shooting_dataset.csv`（300 行）、`valid_data.csv`（305 行，可被 `validation.py` 读取）、抽取轨迹 CSV 与 5 条出手初值 |
+| `data_validation/` | 第一阶段验证数据暂存区：`DATA_SPECIFICATION.md`（数据规范）、`extract.py`（SportVU 轨迹抽取，argparse CLI `--json/--out/--events/--ball-entity` + `--selfcheck` 内置两帧 fixture）、`data_prep.py`（出手参数合成器）、原始数据集 `basketball_shooting_dataset.csv`（300 行）、`valid_data.csv`（305 行，可被 `validation.py` 读取）、`extracted_ball_tracks.csv`（24,073 行帧级轨迹）与 5 条出手初值 `selected_shot_initial_conditions.csv`、`model_validation_results.md`（`python validation.py data_validation/valid_data.csv` 对 305 行的逐发预测与指标权威报告：74 made / 231 miss、154/305 50.49%、κ = 0.012，可复现） |
 | `Specifications/` | 计划书、规格说明与进度汇报（`.md` + 原版 `.pdf` / `.pptx`） |
 | `SIMULATION_2D_GUIDE.md` | 2D 模拟器使用指南（滑块/按钮/开关/读数） |
 | `SIMULATION_2D_PHYSICS.md` | 2D 模拟器物理模型与常数（含与 3D 流程的差异说明） |
@@ -230,7 +230,7 @@ python make_interactive.py --offline --out basketball_interactive_offline.html
 | `free_vs_three_drag.png` | `python plotting.py` | 罚球 vs 三分球空气阻力偏差图 |
 | `basketball_interactive.html` | `python make_interactive.py` | 带滑块的交互式轨迹浏览器（CDN 版，需联网） |
 
-`data_validation/` 目录是第一阶段真实数据导入的暂存区：`extracted_ball_tracks.csv`（24,073 行帧级轨迹，时间戳精度/轴约定未确认）、`selected_shot_initial_conditions.csv`（5 条，单位与归属未记录，且正 `x_m`、`y_m`≈7.7–10.8 m 与模型坐标约定冲突）、原始 `basketball_shooting_dataset.csv`（300 行，仅二元 `Shot_Result`）。`data_prep.py` 在**显式假设**（正面距离映射、51° 真空解速度、统一 23 rad/s、缺省高度 2.0 m；末尾 5 条按指令假设 `made`）下合成了 `valid_data.csv`（305 行，`validation.py` 可直接解析）。此前的 300 行占位模板 CSV 已被替换删除。这些文件能跑通验证链路，但指标度量的是假设而非实测运动学——**还不是经验证结论**；字段规范、假设清单与验收步骤见 [data_validation/DATA_SPECIFICATION.md](data_validation/DATA_SPECIFICATION.md)。
+`data_validation/` 目录是第一阶段真实数据导入的暂存区：`extracted_ball_tracks.csv`（24,073 行帧级轨迹，时间戳精度/轴约定未确认）、`selected_shot_initial_conditions.csv`（5 条，单位与归属未记录，且正 `x_m`、`y_m`≈7.7–10.8 m 与模型坐标约定冲突）、原始 `basketball_shooting_dataset.csv`（300 行，仅二元 `Shot_Result`）。`data_prep.py` 在**显式假设**（正面距离映射、51° 真空解速度、统一 14.137167 rad/s（= 2.25 RPS，取 `data_prep.py` 的 2.0–2.5 RPS 实用后旋区间中点经 2π 换算）、缺省高度 2.0 m；末尾 5 条按指令假设 `made`）下合成了 `valid_data.csv`（305 行，`validation.py` 可直接解析）。此前的 300 行占位模板 CSV 已被替换删除。这些文件能跑通验证链路，但指标度量的是假设而非实测运动学——**还不是经验证结论**；字段规范、假设清单与验收步骤见 [data_validation/DATA_SPECIFICATION.md](data_validation/DATA_SPECIFICATION.md)。`valid_data.csv` 的逐发预测与指标（模型预测 74 made / 231 miss、一致 154/305 = 50.49%、Wilson 95% CI [44.91%, 56.06%]、κ = 0.012、made 类 recall 24.84%、IDs 301–305 该 5 行 0/5，整体接近 49.92% 随机基线）复算命令 `python validation.py data_validation/valid_data.csv`，明细见 [data_validation/model_validation_results.md](data_validation/model_validation_results.md)。`data_validation/extract.py` 现已是 argparse CLI（`--json/--out/--events/--ball-entity`）并带 `--selfcheck`（用内置两帧 fixture 端到端验证抽取逻辑，不依赖仓库外的 `sample.json`）。仓库中 `basketball_interactive.html` 已内嵌 `lang="zh-CN"` / `<title>` / viewport / description 及用法横幅与 provenance 页脚；原先与之几乎重复的 `basketball_interactive_improved.html`（仅随机 div id 不同）已删除。
 
 ## 10. 团队协作建议
 
@@ -252,6 +252,7 @@ python make_interactive.py --offline --out basketball_interactive_offline.html
 - 2D 模拟器： [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md) / [SIMULATION_2D_PHYSICS.md](SIMULATION_2D_PHYSICS.md)
 - 碰撞模型细节： [Collision.md](Collision.md)
 - 验证数据规范： [data_validation/DATA_SPECIFICATION.md](data_validation/DATA_SPECIFICATION.md)
+- 验证逐发预测与指标明细（可复现）： [data_validation/model_validation_results.md](data_validation/model_validation_results.md)
 - 报告草稿： [Report_Draft.md](Report_Draft.md)，汇报大纲： [Presentation_Outline.md](Presentation_Outline.md)
 
 如果你和队友都在同一个项目里协作，这个 README 可以作为"项目总入口"，帮助快速定位脚本、数据和结果文件。

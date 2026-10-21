@@ -152,8 +152,7 @@
   51° 真空解速度、高度全 2.0 m、IDs 301–305 结局按指令预设为 `made`）——**可被 `validation.py`
   解析运行，但参数与部分标签是假设，不是实测验证**；原 `*_template.csv` 已移除。字段规范、
   假设清单与验收步骤见 `data_validation/DATA_SPECIFICATION.md`
-- 本次运行的 `valid_data.csv` 验证结果为 152/305 agreement（49.8%，Wilson 95% CI [44.3%, 55.4%]），
-  κ = 0.000；模拟对全部 305 行均预测 miss。由于输入参数和部分标签为假设，该结果不是经验验证结论。
+- 本次运行 `python validation.py data_validation/valid_data.csv` 的权威结果（逐发明细见 `data_validation/model_validation_results.md`）：模型预测 **74 made / 231 miss**，与标签一致 **154/305（50.49%，Wilson 95% CI [44.91%, 56.06%]），κ = 0.012**，made 类 recall 仅 24.84%（38/153）；四分类矩阵只有 152 行带明确标签、`made` 类无真阳性。由于 IDs 1–300 的输入是 `data_prep.py` 在显式假设下合成、IDs 301–305 的坐标/单位/标签未核实（该 5 行 0/5 一致），整体一致率接近 49.92% 的随机基线，**不是经验证结论**。
 
 ## 5. To-Do（下一步）
 

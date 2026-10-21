@@ -1,13 +1,13 @@
 # PROJECT_CONTEXT —— 给 AI 助手的上下文记忆
 
 > 本文件是给「接手这个项目的另一个 AI 助手 / 协作者」快速建立上下文的精炼说明。
-> 代码实现细节以各 `.py` 文件内的 docstring 为准，这里只放关键设定、接口与当前结论。
+> 代码实现细节以各 `.py` 文件内的 docstring 为准；这里只放关键设定、接口与当前结论。
 
 ## 1. 项目概览
 
-纯物理（无机器学习）篮球投篮模拟。输入出手点 + 出手速度向量 + 后旋角速度，
-用 RK4 积分求解飞行，受力 = 重力 + 二次空气阻力 + 马格努斯升力；与篮板、篮筐碰撞
-（恢复系数 e=0.7），判定 swish / rim-in / board-in / miss 四种结局。产出命中概率热力图、罚球/三分球轨迹对比与验证误差量化。
+本项目是一个纯物理（无机器学习）篮球投篮模拟。给定出手点、出手速度向量和后旋角速度，
+用 RK4 积分求解飞行轨迹，受力包括重力、二次空气阻力和马格努斯升力；并与篮板、篮筐发生刚性碰撞
+（恢复系数 e = 0.7）。模型输出四类结局：`swish` / `rim-in` / `board-in` / `miss`，并生成命中概率热力图、罚球/三分球轨迹对比和验证误差量化。
 
 ## 2. 核心物理设定
 
@@ -16,7 +16,7 @@
 - 篮板在 `x = 0`，投手在 `-x` 侧；筐心 `RIM_CENTER = (-0.375, 3.05, 0)`。
 
 **后旋方向定义**
-- 纯后旋取 `ω = (0, 0, +ω)`；`ω × v` 的 y 分量为正 → 产生向上升力。
+- 纯后旋取 `ω = (0, 0, +ω)`；`ω × v` 的 `y` 分量为正 → 产生向上升力。
 
 **NBA 场地常数（collision.py）**
 - `RIM_HEIGHT = 3.05 m`，`RIM_DIAMETER = 0.45 m`（`RIM_RADIUS = 0.225 m`）
@@ -37,7 +37,7 @@
 **得分判据**
 - 球心向下穿过 `y = 3.05` 平面，且水平距筐心 `<= RIM_RADIUS - BALL_RADIUS = 0.105 m`
 - 从未碰筐/篮板 → `swish`；只碰筐 → `rim-in`；碰过篮板 → `board-in`；否则 `miss`。
-- 结局按 `contacts` 碰撞序列细分（与计划书 Scope 的 4 类结局对齐）。
+- 结局按 `contacts` 碰撞序列细分，匹配计划书中的 4 类结局设定。
 
 ## 3. 代码接口
 
@@ -60,7 +60,7 @@
 
 ### simulation.py
 - `simulate_shot(release_pos, release_vel, backspin_rate, dt=1e-3, t_max=4.0, max_bounces=50) -> dict`
-  dict 键：`outcome`（"swish"/"bounce-in"/"miss"）、`reason`、`contacted`、`contacts`、`times`、`states`
+  dict 键：`outcome`（`swish` / `rim-in` / `board-in` / `miss`）、`reason`、`contacted`、`contacts`、`times`、`states`
 - `save_trajectory_csv(path, times, states)`
 
 ### experiment.py
@@ -71,8 +71,8 @@
 
 ### validation.py
 - CSV 格式：`shot_id, release_x, release_y, release_z, v0x, v0y, v0z, backspin, actual_outcome`
-- `actual_outcome`：命中(具体子类) = swish/rim-in/board-in；命中(旧标签, 仅二分类) = bounce-in/made/in；未中 = miss/out/no
-- `predict(shot) -> (predicted_outcome, predicted_binary)`，outcome ∈ swish/rim-in/board-in/miss
+- `actual_outcome`：命中(具体子类) = `swish` / `rim-in` / `board-in`；命中(旧标签，仅二分类) = `bounce-in` / `made` / `in`；未中 = `miss` / `out` / `no`
+- `predict(shot) -> (predicted_outcome, predicted_binary)`，`predicted_outcome` ∈ `swish` / `rim-in` / `board-in` / `miss`
 - `run_validation(csv_path="dummy_data.csv")`：输出二分类指标（一致率 + Wilson 95% CI + precision/recall/specificity/F1/MCC + Cohen's kappa + 无信息率基线）与 4 类多分类混淆矩阵
 - `wilson_ci(k, n, z=1.96)`：Wilson 二项置信区间（小样本误差量化）
 - `make_dummy_data(csv_path="dummy_data.csv", n=20, seed=0, correlated=False)`
@@ -80,14 +80,11 @@
 ## 4. 当前成果（已跑通）
 
 - **命中概率峰值**：罚球 `55°`、`45 rad/s`，`P ≈ 0.77`；三分球 `48°`、`48.8 rad/s`，`P ≈ 0.80`
-  （后旋维度存在宽平台 ~15–45 rad/s，具体峰值随随机种子略有浮动；
-  当前 `C_L0=1.0` 的最优后旋高于计划书写的 23 rad/s，属可调参数）
-  （注：罚球用 7.5 m/s、三分用 9.5 m/s，速率不同，峰值水平不可直接比较；
-  关键结论是最优角度下移约 7°，以及阻力偏差随距离增大）
+  （后旋维度存在宽平台 ~15–45 rad/s，具体峰值随随机种子略有浮动）
 - **轨迹偏差**：以真空仰角（约 55.7°）出手，真实（阻力+后旋）轨迹到达筐面时
   **偏低约 40.2 cm**；同样仰角/后旋下，**三分球（6.75 m）偏低约 117.4 cm**，
   比罚球多偏 77.2 cm（`plotting.py`，`free_vs_three_drag.png`）
-- **单发样例**：7.5 m/s、51°、23 rad/s → swish（穿过筐面水平偏移 r=0.055 m）
+- **单发样例**：7.5 m/s、51°、23 rad/s → `swish`（穿过筐面水平偏移 r=0.055 m）
 - **验证链路**：dummy 随机标签下 Agreement ≈ 35%，Cohen's kappa ≈ −0.18
   （随机基线，无意义）；`make_dummy_data(correlated=True)` 自洽模式 ≈ 100%、
   kappa ≈ 1.0；20 发样本的一致率 Wilson 95% CI 约 [18%, 57%]，说明小样本下

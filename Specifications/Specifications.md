@@ -10,7 +10,7 @@ The project is a deterministic, pure-physics simulation of basketball shots. Giv
 
 The primary research question is:
 
-> Given a release point, initial velocity, and backspin, can a pure-physics model with rigid board and rim geometry and a fixed restitution coefficient reproduce swish, rim-in, board-in, and miss outcomes, and how often does it disagree with labelled real shots?
+> Given a release point, initial velocity, and backspin, can a pure-physics model with rigid board and rim geometry and per-contact restitution coefficients (both 0.7) reproduce swish, rim-in, board-in, and miss outcomes, and how often does it disagree with labelled real shots?
 
 The free throw is the primary case. A three-point shot comparison examines how launch conditions and aerodynamic effects change with distance.
 
@@ -21,7 +21,7 @@ The free throw is the primary case. A three-point shot comparison examines how l
 - Release position `(x, y, z)`, initial velocity `(vx, vy, vz)`, and backspin rate.
 - Three-dimensional ball flight under gravity, quadratic air drag, and spin-driven Magnus lift.
 - Fourth-order Runge–Kutta (RK4) integration and vectorised batch simulation.
-- Rigid backboard and rim collision detection, with a single normal restitution coefficient.
+- Rigid backboard and rim collision detection, with per-contact restitution coefficients (backboard and rim).
 - Four mutually exclusive outcome labels: `swish`, `rim-in`, `board-in`, and `miss`.
 - Parameter sweeps over release angle and backspin, with launch-condition jitter, to estimate make probability.
 - Trajectory and probability visualisations, including a free-throw versus three-point comparison.
@@ -67,7 +67,9 @@ The following constants define the current 3D research model. They are hard-code
 | Rim-centre distance from backboard | `0.375 m` |
 | Backboard width / height | `1.8 m` / `1.05 m` |
 | Backboard lower edge | `2.9 m` |
-| Normal coefficient of restitution, `e` | `0.7` |
+| Backboard restitution, `BACKBOARD_RESTITUTION` | `0.7` |
+| Rim restitution, `RIM_RESTITUTION` | `0.7` |
+| Tangential retention, `TANGENTIAL_RETENTION` | `1.0` (frictionless) |
 
 ### 4.3 Forces and integration
 
@@ -85,7 +87,7 @@ Integrate the six-component state with classical RK4 using a nominal step of `1 
 
 - Treat the backboard as a finite rigid rectangle and the rim as a rigid circular ring.
 - Detect contact from ball-surface geometry, not only from whether the ball centre crosses the object.
-- On an approaching contact, reflect the velocity's normal component using `e = 0.7`; leave its tangential component unchanged.
+- On an approaching contact, reflect the velocity's normal component using the per-contact restitution (`BACKBOARD_RESTITUTION` for the board, `RIM_RESTITUTION` for the rim, both `0.7`); the tangential component is scaled by `TANGENTIAL_RETENTION = 1.0` (unchanged by default).
 - Correct penetrated positions where needed to keep the ball outside the contacted geometry.
 - A shot is made when the ball centre crosses downward through `y = 3.05 m` and its horizontal distance to the rim centre is no greater than `RIM_RADIUS - BALL_RADIUS = 0.105 m`.
 - Assign a made shot according to its contact history: no board or rim contact is `swish`; rim contact without board contact is `rim-in`; any board contact is `board-in`. All other shots are `miss`.
@@ -144,7 +146,7 @@ This is a teaching and exploration interface, not the numerical implementation o
 - Keep validation labels and derived results traceable to their input data.
 - Document the random seed and sweep configuration when reporting stochastic results.
 - Treat the small planned empirical sample as a sanity check, not as strong evidence of general predictive performance.
-- State that rigid contacts, one restitution coefficient, constant spin, and simplified rim/board geometry limit physical fidelity; bounce-in predictions are especially sensitive to contact approximations.
+- State that rigid contacts, fixed restitution values, constant spin, and simplified rim/board geometry limit physical fidelity; bounce-in predictions are especially sensitive to contact approximations.
 - Obtain verbal consent for team-member filming, avoid retaining identifying face data, store footage locally, and delete footage after the final report. Use public anonymised tracking data according to its terms.
 
 ## 8. Deliverables and acceptance criteria
@@ -162,7 +164,6 @@ The project is complete when it provides:
 ## 9. Related project documents
 
 - [Project plan (version 3ce56a5a)](./Basketball-Free-Throw-Project-Plan-v2-3ce56a5a.md)
-- [Project plan (version eaf0a7e2)](./Basketball-Free-Throw-Project-Plan-v2-eaf0a7e2.md)
 - [Progress presentation notes](./COMP1110_Basketball_Shot_Simulation_Progress-ea2c2143.md)
 - [Project README](../README.md)
 - [Project context and interfaces](../PROJECT_CONTEXT.md)

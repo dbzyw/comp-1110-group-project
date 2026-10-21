@@ -45,7 +45,7 @@ In scope:
 initial backspin rate (omega). 
 • Air drag (quadratic) and Magnus lift from backspin. 
 • Rigid, immovable backboard (vertical plane) and rigid, immovable rim (torus); inelastic 
-collisions with a single restitution constant e = 0.7. 
+collisions with per-contact restitution coefficients (both 0.7). 
 • Scoring rule: swish, rim-and-in, board-and-in, and miss outcomes. 
 • Extension: comparison of free-throw vs. 3-point shot dynamics, examining how release 
 distance and launch angle alter the importance of air drag and Magnus effects. 
@@ -64,7 +64,7 @@ simulation.
 • Air drag and Magnus lift equations - convert release parameters into continuous 
 trajectories. 
 • Rigid-body collision detection - plane vs sphere (backboard), torus vs sphere (rim), with 
-restitution constant e. 
+per-contact restitution coefficients. 
 • Outcome labelling - swish, rim-bounce-in, board-bounce-in, and miss classification. 
 • Parameter sweep - grid search over release angle and backspin, producing a make-
 probability surface. 
@@ -117,7 +117,7 @@ throws.
 Limitations we will explicitly state: 
 • Rigid board and rim - real rims flex and boards vibrate; rim-bounce-in outcomes will be 
 less accurate than swish outcomes. 
-• Single restitution constant e is a simplification; real board and rim contacts have 
+• Fixed restitution values (both 0.7) are a simplification; real board and rim contacts have 
 different e values. 
 • Spin decay in air beyond Magnus force is not modelled; spin is held constant during 
 flight. 

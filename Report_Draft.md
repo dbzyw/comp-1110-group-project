@@ -1,4 +1,4 @@
-﻿# A Physics-Based Simulation of Basketball Shot Outcomes: Release Geometry, Backspin, and Ball Dynamics under Air Drag and Magnus Effects
+# A Physics-Based Simulation of Basketball Shot Outcomes: Release Geometry, Backspin, and Ball Dynamics under Air Drag and Magnus Effects
 
 *COMP1110 Computing and Data Science in Everyday Life — Final Report (Draft)*
 
@@ -6,7 +6,7 @@
 
 ## Abstract
 
-We build a pure-physics (no machine-learning) simulation of basketball shot outcomes. The ball is treated as a rigid sphere whose flight is integrated with a fourth-order Runge–Kutta scheme under gravity, quadratic air drag, and spin-driven Magnus lift. The backboard is a rigid vertical plane and the rim a rigid ring; contacts use a single restitution coefficient e = 0.7. Given a release point, an initial velocity vector, and a backspin rate, the model classifies the shot as a *swish*, a *rim-in*, a *board-in*, or a *miss*. A Monte-Carlo sweep over release angle and backspin rate yields a make-probability surface whose peak is **P ≈ 0.77 near 55° and 45 rad/s** for a free throw, and **P ≈ 0.80 near 48° and 49 rad/s** at three-point range. Comparing a vacuum-aimed trajectory with the real flight shows the ball arrives **≈ 40.2 cm low** at the rim plane for a free throw, and **≈ 117 cm low** for a three-pointer (6.75 m) — air drag and Magnus lift matter more at longer range. Validation reports agreement with a Wilson 95% confidence interval and Cohen's kappa against chance; final validation against real tracked shots is still in progress.
+We build a pure-physics (no machine-learning) simulation of basketball shot outcomes. The ball is treated as a rigid sphere whose flight is integrated with a fourth-order Runge–Kutta scheme under gravity, quadratic air drag, and spin-driven Magnus lift. The backboard is a rigid vertical plane and the rim a rigid ring; contacts use per-contact restitution coefficients (backboard and rim, both e = 0.7). Given a release point, an initial velocity vector, and a backspin rate, the model classifies the shot as a *swish*, a *rim-in*, a *board-in*, or a *miss*. A Monte-Carlo sweep over release angle and backspin rate yields a make-probability surface whose peak is **P ≈ 0.77 near 55° and 45 rad/s** for a free throw, and **P ≈ 0.80 near 48° and 49 rad/s** at three-point range. Comparing a vacuum-aimed trajectory with the real flight shows the ball arrives **≈ 40.2 cm low** at the rim plane for a free throw, and **≈ 117 cm low** for a three-pointer (6.75 m) — air drag and Magnus lift matter more at longer range. Validation reports agreement with a Wilson 95% confidence interval and Cohen's kappa against chance; final validation against real tracked shots is still in progress.
 
 ---
 
@@ -14,7 +14,7 @@ We build a pure-physics (no machine-learning) simulation of basketball shot outc
 
 Predicting a basketball shot's outcome has been studied from two directions. Pose-estimation systems such as OpenPose (Cao et al., 2017; Nakai et al., 2018) correct the shooter's posture but do not model the ball in flight. Classical ballistics models (Brancazio, 1981; Okubo & Hubbard, 2006) describe the trajectory but often drop backspin or simplify rim/board collisions. Few studies combine all three pieces — release geometry, spin-dependent aerodynamics, and rigid-surface contacts — in one simulation. That gap is our benchmark.
 
-Our research question is: **can a simulation with a rigid backboard, a rigid rim, and a single restitution constant e = 0.7 reproduce swish, rim-in, board-in, and miss?** The only modelled forces are gravity, quadratic (v²) drag, and spin-driven Magnus lift.
+Our research question is: **can a simulation with a rigid backboard, a rigid rim, and per-contact restitution coefficients (both 0.7) reproduce swish, rim-in, board-in, and miss?** The only modelled forces are gravity, quadratic (v²) drag, and spin-driven Magnus lift.
 
 This work contributes a self-contained, reproducible Python simulation (RK4 + collision + sweep + validation) and reports a make-probability surface over release angle and backspin, together with a drag-shortfall estimate for both free throws and a three-point shot.
 
@@ -45,7 +45,7 @@ The state vector is **s = [x, y, z, vx, vy, vz]**. We integrate ds/dt = [vx, vy,
 - **Backboard (plane–sphere):** the ball touches the vertical plane x = 0 when its surface reaches it, provided the contact point lies within the board rectangle (1.8 m wide, 1.05 m tall, bottom edge 2.9 m).
 - **Rim (sphere–ring):** the rim is a circle of radius 0.225 m in the plane y = 3.05 m. The ball collides when the distance from its centre to the closest point on the ring is ≤ R.
 
-On contact, only the velocity component along the contact normal is reflected with restitution e = 0.7: **v' = v − (1 + e)(v · n)n**. The tangential component is unchanged (no friction, no side-spin).
+On contact, only the velocity component along the contact normal is reflected with the per-contact restitution (backboard and rim, both e = 0.7): **v' = v − (1 + e)(v · n)n**. The tangential component is unchanged by default (no friction, no side-spin).
 
 ### 2.5 Scoring Criterion
 
@@ -101,7 +101,7 @@ The validation design uses 20–30 group-member free throws recorded at 60 fps p
 
 The central conclusion is that a small physics model can reproduce the qualitative behaviour of a basketball shot without learning from data. The free throw and three-point sweep both show a reasonably well-defined optimum in release angle and backspin, and the drag-and-Magnus effect grows with distance. This is consistent with the problem specification and with the literature on ball flight, while remaining deliberately simple enough to run fast and transparently.
 
-The limitations are also explicit. The model assumes rigid board and rim surfaces, fixed restitution e = 0.7, and constant spin during flight; it does not model ball deformation, rim flexing, or board vibration. Real-world shot trajectories are noisier than the deterministic model, and the validation sample is still small. These are not weaknesses in the code alone but deliberate boundaries of the project scope.
+The limitations are also explicit. The model assumes rigid board and rim surfaces, fixed restitution values (both 0.7), and constant spin during flight; it does not model ball deformation, rim flexing, or board vibration. Real-world shot trajectories are noisier than the deterministic model, and the validation sample is still small. These are not weaknesses in the code alone but deliberate boundaries of the project scope.
 
 ---
 

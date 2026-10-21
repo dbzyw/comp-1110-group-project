@@ -7,7 +7,7 @@
 
 本项目是一个纯物理（无机器学习）篮球投篮模拟。给定出手点、出手速度向量和后旋角速度，
 用 RK4 积分求解飞行轨迹，受力包括重力、二次空气阻力和马格努斯升力；并与篮板、篮筐发生刚性碰撞
-（恢复系数 e = 0.7）。模型输出四类结局：`swish` / `rim-in` / `board-in` / `miss`，并生成命中概率热力图、罚球/三分球轨迹对比和验证误差量化。
+（篮板/篮筐恢复系数各 0.7）。模型输出四类结局：`swish` / `rim-in` / `board-in` / `miss`，并生成命中概率热力图、罚球/三分球轨迹对比和验证误差量化。
 
 ## 2. 核心物理设定
 
@@ -22,7 +22,7 @@
 - `RIM_HEIGHT = 3.05 m`，`RIM_DIAMETER = 0.45 m`（`RIM_RADIUS = 0.225 m`）
 - `RIM_TO_BOARD = 0.375 m`（筐心到篮板面）
 - 篮板：宽 1.8 m、高 1.05 m、下沿 2.9 m（竖直平面 `x = 0`）
-- `RESTITUTION e = 0.7`
+- `BACKBOARD_RESTITUTION = 0.7`，`RIM_RESTITUTION = 0.7`，`TANGENTIAL_RETENTION = 1.0`（默认无摩擦）
 
 **物理常数（physics.py）**
 - `G = 9.81`，`RHO_AIR = 1.225`，`C_D = 0.50`，`C_L0 = 1.00`
@@ -53,9 +53,11 @@
 ### collision.py
 - `detect_backboard(pos(3,)) -> Collision | None`
 - `detect_rim(pos(3,)) -> Collision | None`
-- `detect_any(pos) -> Collision | None`（篮板优先）
+- `detect_all(pos) -> list[Collision]`；`detect_any(pos) -> Collision | None`（兼容接口，篮板优先，只返回一个）
 - `Collision` 字段：`kind, normal(3,), penetration, contact(3,)`
-- `reflect(vel(3,), normal(3,), e=0.7) -> (3,)`
+- `restitution_for(kind) -> float`（按接触类型取 `BACKBOARD_RESTITUTION` / `RIM_RESTITUTION`）
+- `reflect(vel(3,), normal(3,), e=RESTITUTION, tangential_retention=TANGENTIAL_RETENTION) -> (3,)`
+- `resolve(pos, vel, collision, correct_position=True, restitution=None, ...)`：单个接触响应；`resolve_contacts(...)`：多接触有限轮顺序响应
 - 批量：`detect_backboard_batch(pos(N,3)) -> (hit(N,), normal(N,3), pen(N,))`；`detect_rim_batch` 同
 
 ### simulation.py
@@ -65,9 +67,8 @@
 
 ### experiment.py
 - `batch_simulate(positions(N,3), velocities(N,3), backspin_rate) -> made(bool, N,)`
-- `run_sweep(out_csv="data.csv", seed=0) -> rows`
-- 网格：角度 `30–70°`（17 点）、后旋 `0–60 rad/s`（17 点）、每格 100 次抖动
-  （σ 角度 1°、速率 0.1 m/s）
+- `run_sweep(out_csv="data.csv", seed=0) -> rows`；另有 `run_free_throw_sweep` / `run_three_point_sweep`（`python experiment.py` 默认同时跑罚球+三分，输出 `data.csv` + `data_three.csv`）
+- 罚球网格：角度 `30–70°`（17 点）、后旋 `0–60 rad/s`（17 点）；三分球网格：角度 `36–60°`（17 点）、后旋 `0–60 rad/s`（17 点）；每格 100 次抖动（σ 角度 1°、速率 0.1 m/s）
 
 ### validation.py
 - CSV 格式：`shot_id, release_x, release_y, release_z, v0x, v0y, v0z, backspin, actual_outcome`

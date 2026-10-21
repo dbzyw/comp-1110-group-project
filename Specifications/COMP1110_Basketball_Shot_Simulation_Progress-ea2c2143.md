@@ -16,13 +16,13 @@ Pure physics, no training.
 
 ## 幻灯片 3：Why Ball Physics, Not Pose Estimation
 
-OpenPose work (Cao 2017, Chen 2020) corrects the shooter's posture.
-Classical models (Brancazio 1981, Alaways and Hubbard 2002) drop backspin or fuse the bounce outcomes.
+OpenPose work (Cao 2017, Nakai 2018) corrects the shooter's posture.
+Classical models (Brancazio 1981, Okubo and Hubbard 2006) drop backspin or fuse the bounce outcomes.
 No study fills all five columns. That gap is our benchmark.
 
 ## 幻灯片 4：Model Concept and Research Question
 
-Can a simulation with a rigid board, rigid rim and one restitution constant e = 0.7 reproduce swish, board-and-in and miss?
+Can a simulation with a rigid board, rigid rim and per-contact restitution coefficients (both 0.7) reproduce swish, board-and-in and miss?
 Weight, v-squared drag and spin-driven Magnus lift are the only forces modelled.
 
 ## 幻灯片 5：Method and Tools
@@ -36,7 +36,7 @@ SportVU plus our own filmed throws supply labels only; every constant stays froz
 Release point, velocity vector, backspin
 Quadratic air drag + Magnus lift
 Rigid vertical board plane
-Rigid rim, inelastic contact e = 0.7
+Rigid rim, inelastic contact, restitution 0.7 (board & rim)
 Swish, rim-in, board-in, miss
 Free-throw versus 3-point extension
 

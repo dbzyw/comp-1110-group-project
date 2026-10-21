@@ -17,7 +17,7 @@ pip install -r requirements.txt
 python physics.py        # 物理引擎自检（打印最高点、落地时间等）
 python collision.py      # 碰撞自检（打印 5 组碰撞前后速度）
 python simulation.py     # 单发投篮模拟，生成 trajectory.csv
-python experiment.py     # 角度×后旋扫描，生成 data.csv（罚球 + 三分球）
+python experiment.py     # 角度×后旋扫描，默认同时跑罚球+三分，生成 data.csv + data_three.csv
 python plotting.py       # 生成 dpi=300 的 PNG 图表
 python validation.py --make-dummy   # 生成占位数据 dummy_data.csv
 python validation.py     # 跑一致性验证
@@ -54,7 +54,7 @@ python validation.py     # 跑一致性验证
 ## 重新生成最新图表
 
 ```bash
-python experiment.py            # 罚球 + 三分球两个扫描
+python experiment.py            # 罚球 + 三分球两个扫描（并生成 2D 窗口 data_2d.csv / data_2d_three.csv）
 python experiment.py three      # 只跑三分球扫描 -> data_three.csv
 python plotting.py              # 重新出图
 ```

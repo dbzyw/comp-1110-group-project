@@ -40,7 +40,7 @@
 - **三力模型**：重力 + 二次空气阻力（∝ |v|·v）+ 马格努斯升力（后旋，∝ ω × v）
 - **RK4 数值积分**：支持单发模拟和批量向量化计算
 - **碰撞检测**：篮板（平面-球碰撞）与篮筐（圆环-球碰撞），支持球心在矩形外时的篮板边缘/角落接触，支持批量检测与穿透位置校正——原理与改进方向见 [Collision.md](Collision.md)
-- **恢复系数**：碰撞使用恢复系数反弹（法向 `e = 0.7`）
+- **恢复系数**：篮板/篮筐各自恢复系数（`BACKBOARD_RESTITUTION` / `RIM_RESTITUTION`，默认均 0.7），切向保留比例 `TANGENTIAL_RETENTION = 1.0`（默认无摩擦）
 - **交互式 HTML 轨迹浏览器**（`basketball_interactive.html`）：Plotly 生成的 (角度 × 后旋) 扫描动画，队友浏览器双击即可查看，无需 Python
 - **命中概率热力图**：覆盖出手角度 × 后旋速率的参数扫描，输出命中概率面
 - **轨迹对比**：比较真空瞄准 vs 真实飞行轨迹，并包含罚球与三分球对比
@@ -56,7 +56,7 @@
 | 球质量 | 0.60 kg | 0.624 kg |
 | 空气密度 ρ | 1.204 | 1.225 |
 | 阻力系数 C_D | 0.47 | 0.50 |
-| 恢复系数 | 法向 0.70 + 切向 0.85 | e = 0.70 |
+| 恢复系数 | 法向 0.70 + 切向 0.85 | 篮板/篮筐各 0.70，切向保留 1.0 |
 
 2D 模拟器常数冻结自课程 deck（详见 [SIMULATION_2D_PHYSICS.md](SIMULATION_2D_PHYSICS.md)），用于演示与交互；3D 主流程用于正式实验与验证。**不要把一边的扫描结果直接拿到另一边下结论。**
 
@@ -77,7 +77,7 @@
 - 篮筐高度：`3.05 m`
 - 篮筐直径：`0.45 m`（半径 `0.225 m`）
 - 篮心到篮板距离：`0.375 m`
-- 反弹恢复系数：`e = 0.7`
+- 反弹恢复系数：篮板 `BACKBOARD_RESTITUTION = 0.7`、篮筐 `RIM_RESTITUTION = 0.7`（切向保留 `TANGENTIAL_RETENTION = 1.0`，无摩擦）
 
 ### 5.3 后旋方向
 
@@ -98,7 +98,7 @@ omega = (0, 0, +omega)
 | `physics.py` | 定义物理常数、三力模型和 RK4 积分函数 |
 | `collision.py` | 篮板/篮筐几何与碰撞检测（含边缘/角落）、恢复系数反弹、位置校正 |
 | `simulation.py` | 单发投篮模拟、碰撞循环、出手判定与轨迹保存 |
-| `experiment.py` | 角度和后旋的参数扫描，生成 `data.csv` / `data_three.csv` |
+| `experiment.py` | 角度和后旋的参数扫描，生成 3D `data.csv` / `data_three.csv`，以及 2D 得分窗口 `data_2d.csv` / `data_2d_three.csv` |
 | `plotting.py` | 生成命中概率热力图与轨迹对比图 |
 | `validation.py` | 验证流程、评估指标和占位数据生成 |
 | `make_interactive.py` | 生成 Plotly 交互式轨迹浏览器 `basketball_interactive.html` |
@@ -177,8 +177,10 @@ python make_interactive.py
 | 文件 | 生成方式 | 内容 |
 |---|---|---|
 | `trajectory.csv` | `python simulation.py` | 单发投篮轨迹，列为 `time, x, y, z, vx, vy, vz` |
-| `data.csv` | `python experiment.py` | 罚球扫描结果 |
-| `data_three.csv` | `python experiment.py three` | 三分球扫描结果 |
+| `data.csv` | `python experiment.py`（默认同时跑罚球+三分）或 `python experiment.py free` | 罚球扫描结果 |
+| `data_three.csv` | `python experiment.py`（默认一并生成）或 `python experiment.py three` | 三分球扫描结果 |
+| `data_2d.csv` | `python experiment.py`（默认一并生成）或 `python experiment.py 2d` | 2D 罚球得分窗口扫描结果 |
+| `data_2d_three.csv` | `python experiment.py`（默认一并生成）或 `python experiment.py 2d` | 2D 三分球得分窗口扫描结果 |
 | `dummy_data.csv` | `python validation.py --make-dummy` | 验证用占位数据 |
 | `make_probability.png` | `python plotting.py` | 罚球命中概率图 |
 | `make_probability_three.png` | `python plotting.py` | 三分球命中概率图 |

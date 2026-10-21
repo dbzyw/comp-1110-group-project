@@ -1,6 +1,11 @@
 # 篮球投篮刚体动力学模型：参数、控制方程与轨迹解析
 
-> 本文档由项目说明文件 `README.md` 与物理内核文档 `physics_整理.md` 整合修订而成。
+> 本文档由项目说明 `README.md` 与物理内核 `physics.py` / `collision.py` 的设定整理修订而成，并与
+> `SIMULATION_2D_PHYSICS.md`（2D 演示层）、`Collision.md`（碰撞细节）交叉引用；仓库中并无名为 `physics_整理.md`
+> 的独立文件，其内容已并入本文。注意：本文 §7–§8 的轨迹方程与数值算例采用一组**名义参数**
+> （罚球线 −4.60 m、速率 7.1 m/s、后旋 23 rad/s、仰角 51°），与 `simulation.py` / `experiment.py`
+> 实际使用的 `FREE_THROW_DISTANCE = 4.57 m`、`RELEASE_SPEED = 7.5 m/s` 略有差异，两套数字应各自内部自洽、
+> 不要逐位对照。
 > 项目性质：基于经典力学的篮球投篮数值模拟（COMP1110 课程小组项目），不采用任何数据驱动的学习方法。
 
 ## 摘要

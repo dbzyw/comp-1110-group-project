@@ -195,11 +195,23 @@ def integrate(release_pos, release_vel, backspin_rate,
     states : np.ndarray, shape (N, 6)
         states[i] = [x, y, z, vx, vy, vz] 为 times[i] 时刻的状态。
     """
+    if dt <= 0.0:
+        raise ValueError(f"dt must be positive, got {dt!r}")
+    if t_max < 0.0:
+        raise ValueError(f"t_max must be non-negative, got {t_max!r}")
+
+    release_pos = np.asarray(release_pos, dtype=float)
+    release_vel = np.asarray(release_vel, dtype=float)
+    if release_pos.shape != (3,):
+        raise ValueError(f"release_pos must have shape (3,), got {release_pos.shape}")
+    if release_vel.shape != (3,):
+        raise ValueError(f"release_vel must have shape (3,), got {release_vel.shape}")
+
     omega = spin_vector(backspin_rate)
 
     state = np.empty(6, dtype=float)
-    state[0:3] = np.asarray(release_pos, dtype=float)
-    state[3:6] = np.asarray(release_vel, dtype=float)
+    state[0:3] = release_pos
+    state[3:6] = release_vel
 
     times = [0.0]
     states = [state.copy()]
@@ -238,6 +250,9 @@ def release_velocity(speed: float, angle_deg: float, azimuth_deg: float = 0.0) -
     angle_deg   : 仰角 (相对水平面) [deg]
     azimuth_deg : 方位角, 0 表示正对篮筐, 正值为 +z 方向偏转 [deg]
     """
+    if speed < 0.0:
+        raise ValueError(f"speed must be non-negative, got {speed!r}")
+
     ang = np.deg2rad(angle_deg)
     az = np.deg2rad(azimuth_deg)
     vx = speed * np.cos(ang) * np.cos(az)

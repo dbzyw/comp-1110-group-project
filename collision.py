@@ -65,6 +65,15 @@ class Collision:
     contact: np.ndarray        # 接触点 (表面上的点)
 
 
+def _safe_unit(vec):
+    """返回非零向量的单位向量；若长度近似为零，则返回零向量。"""
+    arr = np.asarray(vec, dtype=float)
+    norm = float(np.linalg.norm(arr))
+    if norm <= 1e-12:
+        return np.zeros_like(arr)
+    return arr / norm
+
+
 # ---------------------------------------------------------------------------
 # 碰撞检测
 # ---------------------------------------------------------------------------
@@ -126,12 +135,14 @@ def detect_rim(pos) -> "Collision | None":
 
     dvec = c - p
     d = float(np.linalg.norm(dvec))
+    if d <= 1e-12:
+        return None
 
     penetration = BALL_RADIUS - d
     if penetration < 0.0:
         return None
 
-    normal = dvec / d                  # 从接触点指向球心
+    normal = _safe_unit(dvec)          # 从接触点指向球心
     return Collision("rim", normal, penetration, p)
 
 
@@ -220,7 +231,9 @@ def reflect(vel, normal, e: float = RESTITUTION) -> np.ndarray:
     返回反弹后的速度向量。
     """
     v = np.asarray(vel, dtype=float)
-    n = np.asarray(normal, dtype=float)
+    n = _safe_unit(normal)
+    if np.allclose(n, 0.0):
+        return v.copy()
     vn = float(np.dot(v, n))
     if vn < 0.0:
         v = v - (1.0 + e) * vn * n

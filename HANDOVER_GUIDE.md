@@ -1,6 +1,6 @@
 # 交接说明 (Handover Guide)
 
-给接手代码的队友：拿到项目目录后，按下面顺序操作即可跑通全部脚本。
+给接手代码的队友：拿到项目目录后，按下面顺序操作即可跑通全部脚本。项目本体是一份纯物理篮球投篮模拟，覆盖罚球主流程，并保留三分球扩展对比；输出结局统一为 `swish` / `rim-in` / `board-in` / `miss`。
 
 ## 第一步：装环境
 
@@ -16,9 +16,9 @@ pip install -r requirements.txt
 ```bash
 python physics.py        # 物理引擎自检（打印最高点、落地时间等）
 python collision.py      # 碰撞自检（打印 5 组碰撞前后速度）
-python simulation.py     # 单发罚球模拟，生成 trajectory.csv
-python experiment.py     # 角度×后旋扫描，生成 data.csv（有进度条）
-python plotting.py       # 生成两张 dpi=300 的 PNG
+python simulation.py     # 单发投篮模拟，生成 trajectory.csv
+python experiment.py     # 角度×后旋扫描，生成 data.csv（罚球 + 三分球）
+python plotting.py       # 生成 dpi=300 的 PNG 图表
 python validation.py --make-dummy   # 生成占位数据 dummy_data.csv
 python validation.py     # 跑一致性验证
 ```
@@ -45,7 +45,7 @@ python validation.py     # 跑一致性验证
      ```
 
    `actual_outcome` 取值（大小写均可）：
-   - 命中，具体子类（推荐，参与 swish/rim-in/board-in/miss 多分类分析）：
+   - 命中，具体子类（推荐，参与 `swish` / `rim-in` / `board-in` / `miss` 多分类分析）：
      `swish` / `rim-in` / `board-in`
    - 命中，未细分子类的旧标签（仅参与 made/miss 二分类）：
      `bounce-in` / `made` / `in`
@@ -70,3 +70,10 @@ python plotting.py              # 重新出图
 - `experiment.py` 太慢：把 `JITTER_SHOTS` 调小（如 20），或把 `DT` 改 `2e-3`
 - 热力图星星贴边：扩大 `BACKSPINS` 范围（已设为 0–60，正常情况下峰值在图内部）
 - 想看「模型自洽」验证（预期 ≈100%）：`python -c "import validation; validation.make_dummy_data(correlated=True)"` 后再 `python validation.py`
+- 需要重跑三分球扩展：使用 `python experiment.py three` 并配合 `python plotting.py` 生成对应图像
+
+## 关键结论（当前版本）
+
+- 罚球峰值大致出现在 `55°`、`45 rad/s` 附近，最优命中率约 `0.77`。
+- 三分球扩展峰值大致在 `48°`、`49 rad/s` 附近，最优命中率约 `0.80`。
+- 真空假设下瞄准筐心时，真实飞行到篮筐平面会偏低；罚球约 `40.2 cm`，三分球约 `117 cm`，说明阻力和马格努斯效应随距离增长而更明显。

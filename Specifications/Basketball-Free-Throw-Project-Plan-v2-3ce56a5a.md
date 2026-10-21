@@ -19,10 +19,10 @@ Course: COMP1110 Computing and Data Science in Everyday Life, 2026/27 Semester 1
 2.1 Motivation and Research Context 
 The prediction of basketball shooting outcomes has been studied by several researchers. 
 Notably, Cao et al. (2017) demonstrated that OpenPose can estimate release parameters 
-and predict shot outcomes, while Chen et al. (2020) used it to analyse shooting kinematics 
+and predict shot outcomes, while Nakai et al. (2018) used it to analyse shooting kinematics 
 and provide posture correction feedback. These approaches focus on the shooters body 
 mechanics rather than the physics of the ball in flight. Physics-based models (Brancazio, 
-1981; Alaways and Hubbard, 2002) study idealised trajectories but often neglect backspin 
+1981; Okubo and Hubbard, 2006) study idealised trajectories but often neglect backspin 
 effects or simplify rim/board collisions. Our project takes a different angle: we focus on the 
 balls physics in flight - how release geometry, backspin, air drag, and Magnus lift jointly 
 determine shot outcomes. This complements pose-estimation approaches by modelling 
@@ -37,7 +37,7 @@ Research question: Given a rigid, immovable backboard and rim with a fixed resti
 constant, can a pure-physics simulation driven by release point, release force vector, and 
 
 release backspin (with air drag and Magnus lift) reproduce whether a shot (a) scores a 
-swish, (b) bounces off the backboard and goes in, or (c) misses? How large is the models 
+swish, (b) bounces off the rim and goes in, (c) bounces off the backboard and goes in, or (d) misses? How large is the models 
 disagreement with real-world measured shots? 
 2.3 Scope 
 In scope: 
@@ -85,24 +85,18 @@ We will cover roughly 10-15 sources, organised into three thematic clusters:
 Cluster 1: Physics of basketball and ball dynamics. 
 • Brancazio, P. J. (1981). Physics of basketball. Am. J. Phys., 49(4), 356-365. - Classical 
 projectile model with fixed restitution. 
-• Alaways, L. W., & Hubbard, M. (2002). Flight dynamics of the basketball. Sports Eng., 
-5(1), 29-37. - Drag and Magnus lift coefficients for a spinning basketball. 
-• Nürnberg, S., et al. (2021). A validated simulation model of basketball free-throw 
-trajectories. Sports Eng., 24, 1-12. - Template for error quantification. 
-• Hunt, J. C. (2011). Projectile dynamics in sport. Human Kinetics. - Reference for 
-restitution and inelastic contact modelling. 
+• Okubo, H., & Hubbard, M. (2006). Dynamics of the basketball shot with application to the free throw. J. Sports Sci., 24(12), 1303-1314. - Validated ball-flight model with drag and backspin; closest template for our approach. 
+• Hamilton, G. R., & Reinschmidt, C. (1997). Optimal trajectory for the basketball free throw. J. Sports Sci., 15(5), 491-504. - Optimal-trajectory model; baseline for validating our integrated trajectory. 
+• White, C. (2011). Projectile dynamics in sport: principles and applications. Routledge. - Reference for restitution and inelastic contact modelling. 
 Cluster 2: Computer vision and pose estimation. 
 • Cao, Z., et al. (2017). OpenPose: Realtime multi-person 2D pose estimation. 
-arXiv:1611.08050. - Pose-estimation pipeline for works like Chen et al. (2020). 
-• Chen, Y., et al. (2020). Prediction of basketball free throw shooting by OpenPose. - 
-Vision-based release parameter estimation; distinct from our ball-physics approach. 
+arXiv:1611.08050. - Pose-estimation pipeline for works like Nakai et al. (2018). 
+• Nakai, M., Tsunoda, Y., Hayashi, H., & Murakoshi, H. (2018). Prediction of basketball free throw shooting by OpenPose. In New Frontiers in Artificial Intelligence (JSAI-isAI 2018), Springer. - Vision-based release parameter estimation; distinct from our ball-physics approach. 
 Cluster 3: Kinematics and data sources. 
-• Okazaki, V. H. A., et al. (2011). A review on basketball shooting kinematics. Rev. Bras. 
-Educ. Fí s. Esporte, 25(4), 665-680. - Empirical release parameter ranges. 
+• Okazaki, V. H. A., Rodacki, A. L. F., & Satern, M. N. (2015). A review on the basketball jump shot. Sports Biomech., 14(2), 190-205. - Empirical release parameter ranges. 
 • NBA SportVU / AWS public tracking datasets. - External validation data. 
 • Our own filmed dataset (20-30 free throws, mobile camera at 60 fps). 
-• Wiley, S., et al. (2014). Release conditions for successful and unsuccessful free throws. J. 
-Sports Sci., 32(12), 1148-1154. - Calibrating parameter sweep ranges. 
+• Tran, C. M., & Silverberg, L. M. (2008). Optimal release conditions for the free throw in men's basketball. J. Sports Sci., 26(11), 1147-1155. - Calibrating parameter sweep ranges. 
 Research gap: Most existing simulations either (a) ignore backspin and Magnus lift, (b) do 
 not separate swish from rim-bounce outcomes, or (c) treat the rim as flexible. The 
 OpenPose approach focuses on posture correction rather than ball physics. No recent study 

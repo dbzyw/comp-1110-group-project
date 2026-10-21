@@ -84,5 +84,48 @@ class SweepCsvTests(unittest.TestCase):
         self.assertEqual(row["speed_grid_max_m_s"], "8.0000")
 
 
+class InputValidationTests(unittest.TestCase):
+    """Exercise the entry-point guards that raise before any expensive sweep."""
+
+    def test_release_velocity_batch_rejects_length_mismatch(self):
+        with self.assertRaisesRegex(ValueError, "speeds/angles length mismatch"):
+            experiment.release_velocity_batch([7.0, 8.0], [45.0])
+
+    def test_run_sweep_rejects_bad_speed(self):
+        for bad in (0.0, -3.0, float("nan")):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError, "speed must be a finite positive"):
+                    experiment.run_sweep(
+                        "ignored.csv", speed=bad,
+                        angles_deg=np.array([40.0]), backspins=np.array([0.0]),
+                    )
+
+    def test_run_sweep_rejects_bad_release_pos(self):
+        with self.assertRaisesRegex(ValueError, "release_pos must be a finite"):
+            experiment.run_sweep(
+                "ignored.csv", release_pos=np.array([1.0, 2.0]),
+                angles_deg=np.array([40.0]), backspins=np.array([0.0]),
+            )
+
+    def test_run_sweep_rejects_empty_grid(self):
+        with self.assertRaises(ValueError):
+            experiment.run_sweep(
+                "ignored.csv", angles_deg=np.array([]), backspins=np.array([0.0, 10.0]),
+            )
+
+    def test_run_sweep_2d_rejects_n_speed_below_2(self):
+        with self.assertRaisesRegex(ValueError, "n_speed must be >= 2"):
+            experiment.run_sweep_2d("ignored.csv", n_speed=1)
+
+    def test_run_sweep_2d_rejects_non_finite_h0_or_dist(self):
+        for bad_h0, bad_dist in [(-1.0, 4.6), (2.0, 0.0), (float("nan"), 4.6)]:
+            with self.subTest(h0=bad_h0, dist=bad_dist):
+                with self.assertRaisesRegex(ValueError, "h0/dist must be positive finite"):
+                    experiment.run_sweep_2d("ignored.csv", h0=bad_h0, dist=bad_dist,
+                                            angles_deg=np.array([45.0]),
+                                            backspins=np.array([20.0]),
+                                            speeds=np.array([7.0, 8.0]))
+
+
 if __name__ == "__main__":
     unittest.main()

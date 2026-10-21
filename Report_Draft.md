@@ -1,6 +1,16 @@
-﻿# A Physics-Based Simulation of Basketball Shot Outcomes: Release Geometry, Backspin, and Ball Dynamics under Air Drag and Magnus Effects
+# A Physics-Based Simulation of Basketball Shot Outcomes: Release Geometry, Backspin, and Ball Dynamics under Air Drag and Magnus Effects
 
 *COMP1110 Computing and Data Science in Everyday Life — Final Report (Draft)*
+
+**Keywords:** basketball, projectile motion, RK4, air drag, Magnus lift, coefficient of restitution, Monte-Carlo sweep, validation metrics
+
+## Table of contents
+
+- Abstract
+- 1. Introduction
+- 2. Methods — 2.1 Coordinates / 2.2 Forces / 2.3 RK4 / 2.4 Collisions / 2.5 Scoring / 2.6 Sweep & validation design
+- 3. Results — 3.1 Make-probability surface / 3.2 Vacuum vs real flight / 3.3 Validation (preliminary)
+- 4. Discussion · 5. Ethics · 6. Conclusion · 7. Future Work · References
 
 ---
 
@@ -42,10 +52,10 @@ The state vector is **s = [x, y, z, vx, vy, vz]**. We integrate ds/dt = [vx, vy,
 
 ### 2.4 Collision Model
 
-- **Backboard (plane–sphere):** the ball touches the vertical plane x = 0 when its surface reaches it, provided the contact point lies within the board rectangle (1.8 m wide, 1.05 m tall, bottom edge 2.9 m).
+- **Backboard (plane–sphere):** the ball touches the vertical plane x = 0 when its surface reaches it, provided the contact point lies within the board rectangle (1.8 m wide, 1.05 m tall, bottom edge 2.9 m). Contact is detected from the closest point on the rectangle, so edge and corner hits are included.
 - **Rim (sphere–ring):** the rim is a circle of radius 0.225 m in the plane y = 3.05 m. The ball collides when the distance from its centre to the closest point on the ring is ≤ R.
 
-On contact, only the velocity component along the contact normal is reflected with restitution e = 0.7: **v' = v − (1 + e)(v · n)n**. The tangential component is unchanged (no friction, no side-spin).
+On contact, only the velocity component along the contact normal is reflected with restitution e = 0.7: **v' = v − (1 + e)(v · n)n**. The tangential component is unchanged (the model's default tangential-retention parameter is 1.0, i.e. no friction, no side-spin); a bounded finite-round correction handles simultaneous board-and-rim contacts.
 
 ### 2.5 Scoring Criterion
 
@@ -53,7 +63,7 @@ A shot is *made* when the ball centre crosses the plane y = 3.05 m downward whil
 
 ### 2.6 Parameter Sweep and Validation Design
 
-The sweep varies release angle (30–70°, 17 values) and backspin rate (0–60 rad/s, 17 values); each cell uses 100 Monte-Carlo shots with Gaussian jitter (σ = 1° in angle, σ = 0.1 m/s in speed). Validation compares model outcomes against tracked shots and reports disagreement rate, Wilson 95% confidence intervals, and Cohen's kappa as a simple but principled summary of performance.
+The sweep varies release angle (30–70°, 17 values) and backspin rate (0–60 rad/s, 17 values); each cell uses 100 Monte-Carlo shots with Gaussian jitter (σ = 1° in angle, σ = 0.1 m/s in speed). Validation compares model outcomes against tracked shots and reports disagreement rate, Wilson 95% confidence intervals, and Cohen's kappa as a simple but principled summary of performance. Every result row carries its sweep configuration (distance, nominal speed, seed, jitter σ, grid bounds) as metadata columns, so stochastic findings remain traceable and reproducible.
 
 ---
 
@@ -61,13 +71,13 @@ The sweep varies release angle (30–70°, 17 values) and backspin rate (0–60 
 
 ### 3.1 Make-Probability Surface
 
-The angle-vs-backspin sweep produces a make-probability surface with a clear interior peak:
+The angle-vs-backspin sweep produces a make-probability surface with a clear interior peak (figures: `make_probability.png`, `make_probability_three.png`, `make_probability_comparison.png`; subtype split: `outcome_breakdown.png`):
 
 - **Peak P(make) ≈ 0.77 at ≈ 55° and ≈ 45 rad/s.**
 - The backspin dimension shows a broad plateau (~15–45 rad/s): more backspin adds lift and raises the shot, but too much overshoots.
 - Without spin the mean probability is lower, and it rises toward the plateau.
 
-Repeating the sweep at three-point range (6.75 m, release speed 9.5 m/s) shifts the optimum and re-shapes the surface:
+Repeating the sweep at three-point range (6.75 m, release speed 9.5 m/s, angle grid 36–60°) shifts the optimum and re-shapes the surface:
 
 - **Three-point peak P(make) ≈ 0.80 at ≈ 48° and ≈ 49 rad/s**, versus ≈ 0.77 at ≈ 55° and ≈ 45 rad/s for the free throw.
 - The optimal release angle is ≈ 7° lower (48° vs 55°): the higher launch speed required to cover 6.75 m favours a flatter arc.
@@ -76,7 +86,7 @@ Repeating the sweep at three-point range (6.75 m, release speed 9.5 m/s) shifts 
 
 ### 3.2 Vacuum Aim vs. Real Flight
 
-A second experiment aims the ball “as if in a vacuum” (only gravity) at the rim centre, then re-runs the same release with drag and backspin. The result is a systematic shortfall relative to the ideal trajectory:
+A second experiment aims the ball “as if in a vacuum” (only gravity) at the rim centre, then re-runs the same release with drag and backspin (figures: `trajectory_comparison.png`, `trajectory_comparison_three.png`, `free_vs_three_drag.png`). The result is a systematic shortfall relative to the ideal trajectory:
 
 - With air resistance the ball reaches the rim plane **≈ 40.2 cm low** for a free throw.
 - The same comparison at three-point range shows a shortfall of **≈ 117 cm low**.
@@ -90,18 +100,18 @@ This is the key comparative result: longer release distance increases flight tim
 The validation pipeline (`validation.py`, read → predict → compare) is implemented and reports, in addition to the raw agreement/disagreement rate:
 
 - **Wilson 95% confidence interval** on the agreement rate — essential for the small (20–30 shot) sample, where a bare proportion is statistically weak.
-- **Cohen's kappa** and the no-information baseline.
-- **Four-class confusion matrix** with per-class precision/recall/F1 and the binary made-vs-miss summary.
+- **Cohen's kappa** and the no-information baseline, plus precision/recall/specificity/F1/MCC for the binary made-vs-miss split.
+- **Four-class confusion matrix** with per-class precision/recall/F1.
 
-The validation design uses 20–30 group-member free throws recorded at 60 fps plus public NBA SportVU tracking. The model predicts release geometry and outcome labels, and compares them to real recorded shots. For now, the code path is complete and self-consistent; the final empirical agreement numbers remain to be filled in once real shots are processed.
+The validation design uses 20–30 group-member free throws recorded at 60 fps plus public NBA SportVU tracking. Status as of this revision (2026-10-21): `data_validation/` holds a SportVU-style ball-track extraction (24,073 frame records over 49 events; the export flattened timestamps to one rounded scientific-notation value, so millisecond ordering is lost; source axes/origin are still unconfirmed) and five selected release position/velocity records whose units and shot linkage are not yet documented. The earlier 300-row placeholder template (binary `made`/`miss` only, all seven physical inputs blank) has been removed from the branch while its source dataset is re-verified. Dummy runs confirm the metric chain end-to-end (`python validation.py selfcheck`: agreement = 100%, κ > 0.99 on self-consistent data; uncorrelated labels give ≈ 35% with κ ≈ −0.18, the random baseline). The final empirical agreement numbers against real tracked shots remain to be filled in once release parameters, spin and outcome labels are derived with documented conventions.
 
 ---
 
 ## 4. Discussion
 
-The central conclusion is that a small physics model can reproduce the qualitative behaviour of a basketball shot without learning from data. The free throw and three-point sweep both show a reasonably well-defined optimum in release angle and backspin, and the drag-and-Magnus effect grows with distance. This is consistent with the problem specification and with the literature on ball flight, while remaining deliberately simple enough to run fast and transparently.
+The central conclusion is that a small physics model can reproduce the qualitative behaviour of a basketball shot without learning from data. The free throw and three-point sweep both show a reasonably well-defined optimum in release angle and backspin, and the drag-and-Magnus effect grows with distance. This is consistent with the problem specification, with the literature on ball flight, and with published optimal free-throw release conditions (Tran & Silverberg, 2008, who locate the optimum band near 50–55°), while remaining deliberately simple enough to run fast and transparently.
 
-The limitations are also explicit. The model assumes rigid board and rim surfaces, fixed restitution e = 0.7, and constant spin during flight; it does not model ball deformation, rim flexing, or board vibration. Real-world shot trajectories are noisier than the deterministic model, and the validation sample is still small. These are not weaknesses in the code alone but deliberate boundaries of the project scope.
+The limitations are also explicit. The model assumes rigid board and rim surfaces, fixed restitution e = 0.7, and constant spin during flight; it does not model ball deformation, rim flexing, or board vibration. Real-world shot trajectories are noisier than the deterministic model, and the validation sample is still small. These are not weaknesses in the code alone but deliberate boundaries of the project scope. A separate interactive 2D demonstration (`basketball_shot_2d.py`) deliberately uses a different frozen constant set (m = 0.60 kg, ρ = 1.204, C_d = 0.47, C_L = 0.20, plus tangential restitution 0.85); its results are reported only as a teaching aid and must not be merged numerically with the 3D findings above.
 
 ---
 
@@ -122,6 +132,7 @@ This project demonstrates that a pure-physics simulation can generate realistic 
 - Import real SportVU and self-filmed (60 fps) data to complete the validation and report the disagreement rate.
 - Calibrate the three-point launch speed against published release kinematics and re-run the sweep at a matched speed, so free-throw and three-point peak levels become a like-for-like difficulty comparison.
 - Add spin decay, rim flex, and a rim-vs-board-specific restitution.
+- Recover original-precision tracking timestamps and confirm the source coordinate convention before deriving release velocities from tracks (see `data_validation/DATA_SPECIFICATION.md`).
 - Keep a written note on a possible AI-based extension (pose estimation) out of scope for the main physics model.
 
 ---
@@ -130,8 +141,9 @@ This project demonstrates that a pure-physics simulation can generate realistic 
 
 1. Cao, Z., Simon, T., Wei, S.-E., & Sheikh, Y. (2017). Realtime multi-person 2D pose estimation using Part Affinity Fields. *CVPR*.
 2. Nakai, M., Tsunoda, Y., Hayashi, H., & Murakoshi, H. (2018). Prediction of basketball free throw shooting by OpenPose. In *New Frontiers in Artificial Intelligence* (JSAI-isAI 2018). Springer.
-3. Brancazio, P. J. (1981). Physics of basketball. *American Journal of Physics*, 49(4).
-4. Okubo, H., & Hubbard, M. (2006). Dynamics of the basketball shot with application to the free throw. *Journal of Sports Sciences*, 24(12), 1303-1314.
-5. Hamilton, G. R., & Reinschmidt, C. (1997). Optimal trajectory for the basketball free throw. *Journal of Sports Sciences*, 15(5), 491-504.
-6. White, C. (2011). *Projectile Dynamics in Sport: Principles and Applications*. Routledge.
-7. Okazaki, V. H. A., Rodacki, A. L. F., & Satern, M. N. (2015). A review on the basketball jump shot. *Sports Biomechanics*, 14(2), 190-205.
+3. Brancazio, P. J. (1981). Physics of basketball. *American Journal of Physics*, 49(4), 356–365.
+4. Okubo, H., & Hubbard, M. (2006). Dynamics of the basketball shot with application to the free throw. *Journal of Sports Sciences*, 24(12), 1303–1314.
+5. Hamilton, G. R., & Reinschmidt, C. (1997). Optimal trajectory for the basketball free throw. *Journal of Sports Sciences*, 15(5), 491–504.
+6. Tran, C. M., & Silverberg, L. M. (2008). Optimal release conditions for the free throw in men's basketball. *Journal of Sports Sciences*, 26(11), 1147–1155.
+7. White, C. (2011). *Projectile Dynamics in Sport: Principles and Applications*. Routledge.
+8. Okazaki, V. H. A., Rodacki, A. L. F., & Satern, M. N. (2015). A review on the basketball jump shot. *Sports Biomechanics*, 14(2), 190–205.

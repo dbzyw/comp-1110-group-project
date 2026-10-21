@@ -39,7 +39,7 @@
 - **交互式 2D 模拟器**（`basketball_shot_2d.py`）：滑块实时调节出手高度/角度/后旋/速度/距离，SHOOT 动画重放，SCAN WINDOW 一键搜索"必中速度区间"，内置罚球/三分预设——详见 [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md)
 - **三力模型**：重力 + 二次空气阻力（∝ |v|·v）+ 马格努斯升力（后旋，∝ ω × v）
 - **RK4 数值积分**：支持单发模拟和批量向量化计算
-- **碰撞检测**：篮板（平面-球碰撞）与篮筐（圆环-球碰撞），支持球心在矩形外时的篮板边缘/角落接触，支持批量检测与穿透位置校正——原理与改进方向见 [碰撞.md](碰撞.md)
+- **碰撞检测**：篮板（平面-球碰撞）与篮筐（圆环-球碰撞），支持球心在矩形外时的篮板边缘/角落接触，支持批量检测与穿透位置校正——原理与改进方向见 [Collision.md](Collision.md)
 - **恢复系数**：碰撞使用恢复系数反弹（法向 `e = 0.7`）
 - **交互式 HTML 轨迹浏览器**（`basketball_interactive.html`）：Plotly 生成的 (角度 × 后旋) 扫描动画，队友浏览器双击即可查看，无需 Python
 - **命中概率热力图**：覆盖出手角度 × 后旋速率的参数扫描，输出命中概率面
@@ -106,7 +106,7 @@ omega = (0, 0, +omega)
 | `test_collision.py` | 碰撞几何与速度响应的专项测试（PR #1 引入） |
 | `SIMULATION_2D_GUIDE.md` | 2D 模拟器使用指南（滑块/按钮/开关/读数） |
 | `SIMULATION_2D_PHYSICS.md` | 2D 模拟器物理模型与常数（含与 3D 流程的差异说明） |
-| `碰撞.md` | 碰撞模型的计算方法、测试与改进方向 |
+| `Collision.md` | 碰撞模型的计算方法、测试与改进方向 |
 | `requirements.txt` | Python 依赖列表 |
 | `HANDOVER_GUIDE.md` | 交接说明与运行顺序 |
 | `PROJECT_CONTEXT.md` | 给协作者/AI 助手的背景说明 |
@@ -195,7 +195,7 @@ python make_interactive.py
 - 先看 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) 了解项目背景和接口说明
 - 再从 [HANDOVER_GUIDE.md](HANDOVER_GUIDE.md) 按顺序执行脚本
 - 想快速上手玩模拟器：直接双击 `basketball_shot_2d.exe`，或看 [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md)
-- 改碰撞相关代码前，先读 [碰撞.md](碰撞.md) 和 `test_collision.py`，改完跑一遍测试
+- 改碰撞相关代码前，先读 [Collision.md](Collision.md) 和 `test_collision.py`，改完跑一遍测试
 - 修改代码时优先参考各个 Python 文件中的 docstring 和函数说明
 - 若要增加新实验或新数据集，先更新说明，再补充图表/验证结果
 
@@ -205,6 +205,6 @@ python make_interactive.py
 - AI/协作者上下文说明： [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)
 - 详细项目计划与技术背景： [Specifications/](Specifications/)
 - 2D 模拟器： [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md) / [SIMULATION_2D_PHYSICS.md](SIMULATION_2D_PHYSICS.md)
-- 碰撞模型细节： [碰撞.md](碰撞.md)
+- 碰撞模型细节： [Collision.md](Collision.md)
 
 如果你和队友都在同一个项目里协作，这个 README 可以作为"项目总入口"，帮助快速定位脚本、数据和结果文件。

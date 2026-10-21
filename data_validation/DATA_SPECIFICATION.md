@@ -1,226 +1,174 @@
-# Data Specification for Basketball Shot Validation
+# Data Specification for the Basketball Shot Validation Pipeline
 
-## 1. Purpose and scope
+## 1. Purpose
 
-This document describes the files currently in `data_validation`, the extraction
-script's input/output contract, and the data required by the project's 3D
-validation pipeline. It distinguishes observed file contents from assumptions
-that still need confirmation. The tracking extract and the spreadsheet are not
-yet a complete, validated input to `validation.py`.
+This document defines the input contract implemented by the project's
+`validation.py`, describes the data files currently kept in this folder, and
+records the limits of using those files for model validation.
 
-The project uses observed shots only to evaluate the frozen physics model, not
-to train or tune it. The primary model uses SI units and a right-handed
-coordinate system: `x` points from the shooter to the basket, `y` is vertical
-up, and `z` is lateral. Confirm and, if necessary, transform source coordinate
-axes before using tracking data with that model.
+Validation compares recorded outcomes against the frozen 3D physics
+simulation. Data is for evaluation only; it must not be used to tune model
+constants. The simulation uses SI units and a right-handed coordinate system:
 
-## 2. Files currently present
+- `x`: horizontal, from shooter towards basket
+- `y`: vertical, positive upwards
+- `z`: lateral
+- Pure backspin: angular velocity vector `(0, 0, +backspin)` in rad/s
 
-| File | Observed contents | Current role and limitations |
+## 2. Files in this folder
+
+| File | Contents | Relevance to `validation.py` |
 |---|---|---|
-| `extract.py` | Python script reading `sample.json` | Extracts ball positions from the first 50 events and writes `extracted_ball_tracks.csv`. The expected JSON file is not present in this folder. |
-| `extracted_ball_tracks.csv` | 24,073 rows; 6 columns; comma-delimited UTF-8 | Ball tracking samples with event, time, shot-clock, and position fields. It does not contain shot labels, release velocities, or spin. |
-| `selected_shot_initial_conditions.csv` | 5 rows; 6 columns; comma-delimited UTF-8 | English-named CSV conversion of the selected position and initial-velocity values from the workbook. It has no shot identifier, outcome, backspin, or documented units for the velocity columns. |
-| `basketball_shooting_dataset.csv` | 300 rows; 20 columns; comma-delimited UTF-8 | Original source dataset copied into this folder. It includes shot result and aggregate/release measurements, but its provenance and some measurement conventions need confirmation before model validation. |
-| `basketball_shots_validation_template.csv` | 300 rows; 9 columns; comma-delimited UTF-8 | Prepared from `C:\Users\yinch\Downloads\basketball_shooting_dataset.csv`. Binary outcomes are mapped to `made`/`miss`; release coordinates, velocity components, and backspin remain blank because they cannot be reliably derived from the source metadata currently available. |
+| `extracted_ball_tracks.csv` | 24,073 tracking rows with event, time, shot-clock, and ball-position fields | Frame-level positions only; it does not directly contain shot-level release inputs or outcomes. |
+| `selected_shot_initial_conditions.csv` | Five rows with `x_m`, `y_m`, `z_m`, `v0x`, `v0y`, and `v0z` | Has possible position and velocity components, but lacks shot IDs, backspin, outcome labels, and confirmed coordinate/unit metadata. |
+| `extract.py` | Extracts ball positions from a local `sample.json` | Writes tracking rows; the expected JSON source is not currently in this folder. |
 
-All data tables in this folder use UTF-8 encoding and comma-delimited CSV.
-`extract.py` remains a Python script and `DATA_SPECIFICATION.md` remains
-documentation; they are not data tables. The original Excel workbook was
-replaced by its CSV conversion at the user's request.
+All data tables use comma-delimited UTF-8 CSV. The original workbook was
+converted to `selected_shot_initial_conditions.csv`; it is no longer kept in
+this folder. Source provenance and the relationship between the tracking data
+and selected initial conditions remain unconfirmed.
 
-The source dataset, collection date, license/terms, event-selection method, and
-the relationship between the tracking extract, selected initial conditions,
-and the added shooting dataset have not been documented in the files currently
-present. The added shooting dataset is not established as NBA SportVU data;
-confirm provenance before making that attribution.
+## 3. Exact input contract from `validation.py`
 
-## 3. Extraction script contract
+### 3.1 Required CSV header
 
-`extract.py` currently:
-
-1. Opens a local file named `sample.json` and reads `data["events"]`.
-2. Iterates over `data["events"][:50]`.
-3. For each event, reads `event["eventId"]` and each `moment`.
-4. Reads the moment timestamp from index `1` and shot clock from index `3`.
-5. Selects entities whose index `0` equals `-1` (commented as the basketball).
-6. Reads position from entity indexes `2`, `3`, and `4`; multiplies each by
-   `0.3048` to convert feet to metres and rounds to three decimal places.
-7. Writes `event_id`, `timestamp_ms`, `shot_clock`, `x_m`, `y_m`, and `z_m`
-   to `extracted_ball_tracks.csv`.
-
-The script relies on positional JSON indexes and a hard-coded input filename.
-Before rerunning it on another source, verify that the source uses the same
-event/moment/entity layout, that entity ID `-1` denotes the ball, and that
-position values are in feet. The script converts units but does not document,
-validate, or transform the source coordinate-axis convention.
-
-## 4. Tracking CSV specification
-
-### 4.1 File format and observed profile
-
-- Encoding: readable as UTF-8 (optional BOM accepted).
-- Delimiter: comma (`,`).
-- Encoding: UTF-8.
-- Header: `event_id,timestamp_ms,shot_clock,x_m,y_m,z_m`
-- Observed data rows: 24,073.
-- Observed event IDs: 49 distinct values, ranging from 1 to 54.
-- Observed complete duplicate rows: 10.
-- `shot_clock`: 953 blank values; nonblank values range from 0.03 to 24.0.
-- `timestamp_ms`: every exported value currently has the same text
-  representation, `1.45196E+12`. This representation does not preserve useful
-  millisecond-level variation; do not use it to determine frame order, sampling
-  interval, or shot duration without recovering the original-precision source.
-- Position columns have no blank cells in the current file. Their observed
-  numeric ranges are:
-
-| Column | Meaning indicated by name/script | Observed range |
-|---|---|---:|
-| `x_m` | First source position component, converted to metres | -0.545 to 30.368 |
-| `y_m` | Second source position component, converted to metres | -0.258 to 15.592 |
-| `z_m` | Third source position component, converted to metres | 0.021 to 5.217 |
-
-These ranges are descriptive checks only. They do not establish the source
-coordinate convention, court origin, axis orientation, or whether the named
-components correspond to the 3D model's axes.
-
-### 4.2 Data dictionary
-
-| Field | Type | Unit / interpretation | Validation notes |
-|---|---|---|---|
-| `event_id` | Integer-like identifier | Source event identifier | Not necessarily a shot ID. Confirm event-to-shot meaning and uniqueness before grouping. |
-| `timestamp_ms` | Numeric-like timestamp | Intended milliseconds, as indicated by the script's field name | Current exported values are all identically rounded in scientific notation. Recover higher precision and document the epoch/time basis before temporal analysis. |
-| `shot_clock` | Numeric, nullable | Source shot-clock units are not specified in the file | 953 blanks are present. Preserve nulls; document whether clock counts up or down and how it relates to timestamps. |
-| `x_m` | Numeric | Metres after multiplying source coordinate 1 by `0.3048` | Axis meaning and origin require source metadata. |
-| `y_m` | Numeric | Metres after multiplying source coordinate 2 by `0.3048` | Do not assume this is vertical without confirming source axes. |
-| `z_m` | Numeric | Metres after multiplying source coordinate 3 by `0.3048` | Do not assume this is lateral without confirming source axes. |
-
-This is a ball-track sample table, not a shot-level validation table. In
-particular, it does not identify release samples, provide initial velocity or
-backspin, or give the actual outcome label.
-
-## 5. Selected initial-conditions CSV specification
-
-`selected_shot_initial_conditions.csv` was converted from the workbook that
-previously contained one sheet named `Sheet1`. It is UTF-8, comma-delimited,
-and has the header:
-
-```text
-x_m, y_m, z_m, v0x, v0y, v0z
-```
-
-It contains five data rows. The source worksheet's intervening blank rows were
-omitted; worksheet row numbers were not carried over as shot identifiers. The
-position field names indicate metres. The velocity field names appear to be
-initial velocity components, but their units, axis convention, derivation
-method, and association with individual shots are not recorded. The source
-workbook contained no shot ID, actual outcome, backspin rate, timestamp, or
-provenance metadata. These rows therefore cannot currently be matched reliably
-to tracking events or passed directly to the validation pipeline.
-
-When importing, retain the header and do not treat record order as a shot
-identifier.
-
-## 6. Required shot-level validation input
-
-The project's `validation.py` expects a shot-level CSV with this exact header
-and comma delimiter:
+`validation.py` uses `csv.DictReader` and requires every field below to be
+present. Keep this spelling and order in validation files:
 
 ```csv
 shot_id,release_x,release_y,release_z,v0x,v0y,v0z,backspin,actual_outcome
 ```
 
-| Field | Required meaning | Unit / allowed values |
+The loader checks that the required column names are present; it does not
+require these to be the only columns. It expects one record per shot.
+
+### 3.2 Field types and meanings
+
+| Field | Code-level requirement | Meaning and units |
 |---|---|---|
-| `shot_id` | Stable unique identifier for one shot | Non-empty string or integer-like ID; must link to source records. |
-| `release_x`, `release_y`, `release_z` | Ball-centre position at release in the 3D model coordinate system | Metres; `y` is vertical and `z` is lateral. |
-| `v0x`, `v0y`, `v0z` | Initial ball-centre velocity components at release | Metres per second, using the same axes as the release position. |
-| `backspin` | Release backspin rate used by the model | Radians per second; the model convention is `omega = (0, 0, +backspin)`. |
-| `actual_outcome` | Observed result for that same shot | Detailed: `swish`, `rim-in`, `board-in`, or `miss`. Legacy made/miss labels such as `made`, `in`, `bounce-in`, `out`, or `no` support binary analysis only. |
+| `shot_id` | Must parse with Python `int()` | Integer shot identifier. Despite any more general description elsewhere, the current loader does not accept IDs such as `source_row_0001`. Duplicate IDs generate a warning but are still included. |
+| `release_x` | Finite float | Ball-centre release x coordinate, metres, positive toward the basket. |
+| `release_y` | Finite float | Ball-centre release height, metres, positive upwards. The simulation rejects values below zero. |
+| `release_z` | Finite float | Ball-centre lateral release coordinate, metres. |
+| `v0x` | Finite float | Initial velocity along x, m/s. |
+| `v0y` | Finite float | Initial vertical velocity, m/s. |
+| `v0z` | Finite float | Initial lateral velocity, m/s. |
+| `backspin` | Finite float | Backspin rate, rad/s. The model maps this to `(0, 0, +backspin)`; positive values give upward Magnus lift for forward-moving shots. |
+| `actual_outcome` | Case-insensitive recognized string | Observed result; see supported labels below. |
 
-Use one record per shot, not one record per tracking frame. Keep a separate
-traceable link from each `shot_id` to its source event/frame range and
-annotation. If the outcome is only known as made/missed, do not fabricate one
-of the three made-shot subtypes; four-class metrics are not supported by such
-labels.
+The loader converts the seven physical values to floats and rejects non-numeric
+or non-finite values (`NaN`, `inf`). A fully blank row is skipped; a
+partially-filled row is not skipped and will fail numeric or label validation.
+The model receives the position, velocity, and backspin; the loader does not
+derive these from other columns.
 
-### 6.1 Prepared template from the shooting dataset
+### 3.3 Supported outcome labels
 
-`basketball_shots_validation_template.csv` follows the exact nine-column
-validation header above and has one row for each of the 300 source records.
-Its `shot_id` values (`source_row_0001` through `source_row_0300`) identify
-source data-row positions, not verified shot identifiers. They preserve a
-traceable row-level link to `basketball_shooting_dataset.csv`, the unchanged
-source copy now stored alongside the template.
+`validation.py` lowercases and trims outcome labels. The accepted labels are:
 
-The source's `Shot_Result` values were `0` or `1`; they were mapped to `miss`
-and `made`, respectively. The prepared file contains 148 `made` and 152
-`miss` labels. These are binary labels only and do not support the four-class
-outcome analysis.
+- Made: `swish`, `rim-in`, `board-in`, `bounce-in`, `made`, `in`
+- Missed: `miss`, `out`, `no`
 
-The source also has `Shot_Speed_m_s`, `Release_Angle_deg`, and gyroscope
-columns, but their exact measurement definitions, coordinate axes, and
-relationship to the simulation's release vector and backspin convention are
-not established. Therefore the template leaves `release_x`, `release_y`,
-`release_z`, `v0x`, `v0y`, `v0z`, and `backspin` blank rather than assuming a
-release origin, planar motion, angle convention, or gyro axis. The file is a
-staging template for later review; it is not ready to pass to `validation.py`
-until these inputs are measured or derived with documented, validated
-conventions. Keep the original dataset unchanged.
+`swish`, `rim-in`, `board-in`, and `miss` can be represented in the four-class
+confusion matrix. `bounce-in`, `made`, and `in` indicate only a binary make;
+they are included in made/miss statistics but not the four-class matrix.
+Do not invent a detailed made-shot subtype when the observation only says
+made.
 
-## 7. Data preparation and acceptance checks
+### 3.4 Prediction and reported statistics
 
-Before running validation:
+For each valid row, `predict()` calls the 3D `simulate_shot()` with the release
+position, velocity, and backspin. Simulation outcomes are `swish`, `rim-in`,
+`board-in`, or `miss`.
 
-1. **Record provenance:** source name, source URL or local source identifier,
-   access date, license/terms, extraction date, and any filtering or selection
-   criteria.
-2. **Preserve originals:** keep the source JSON/workbook unchanged; write
-   normalized and derived data to separate files.
-3. **Confirm source semantics:** verify entity IDs, source units, coordinate
-   axes/origin/directions, timestamp epoch and precision, shot-clock meaning,
-   and event/shot relationships from source documentation.
-4. **Recover temporal precision:** obtain the original timestamp values rather
-   than relying on the rounded values in the current CSV. Sort samples within
-   each shot by precise time before estimating motion.
-5. **Identify shots and release:** define a reproducible event-to-shot and
-   release-frame rule. Derive velocity from ordered positions only after
-   confirming coordinate mapping and time units; document the estimation
-   method and uncertainty.
-6. **Supply missing model inputs:** estimate or obtain backspin and actual
-   outcome for each shot. Record the source or annotation method. The current
-   files do not provide either field.
-7. **Normalize to model coordinates and SI:** convert to metres and metres per
-   second, map axes into `x` forward, `y` up, `z` lateral, and apply the
-   project's court geometry consistently.
-8. **Check records:** require all numeric model inputs to be finite; check
-   unique shot IDs, non-empty outcomes, plausible release positions/speeds,
-   valid units, and correct label spelling/case. Investigate duplicates and
-   missing values rather than silently dropping or filling them.
-9. **Keep labels independent:** do not use observed outcome labels to tune
-   frozen model constants or choose release parameters.
-10. **Report limitations:** include sample size, missing/excluded records,
-    label granularity, input derivation, and uncertainty. Report binary
-    agreement with a Wilson 95% confidence interval and Cohen's kappa where
-    supported; report a four-class confusion matrix only when detailed labels
-    are available.
+`run_validation()` reports binary agreement/disagreement, Wilson confidence
+interval, precision, recall, specificity, F1, MCC, Cohen's kappa, a
+no-information baseline, and a four-class confusion matrix for labels with
+sufficient detail. Invalid simulation parameters are handled as per-shot
+errors by `run_validation`; they count as binary disagreement and are omitted
+from the multi-class matrix. Invalid numeric text or unsupported labels fail
+while loading the CSV.
 
-The planned validation sources elsewhere in the project documentation are
-public anonymised NBA tracking data and approximately 20–30 group-member free
-throws filmed at 60 fps. Those are plans, not proof of the current files'
-provenance or a completed empirical validation. For self-filmed data, obtain
-participants' consent, keep footage local, avoid retaining identifying face
-data, and delete footage after the final report as specified by the project
-ethics notes.
+## 4. Tracking extraction output
 
-## 8. Current readiness summary
+`extract.py` expects a JSON document with an `events` array. It processes the
+first 50 events, reads the event ID, timestamp, and shot clock from fixed
+positions in each `moment`, selects the entity whose ID is `-1` (commented as
+the ball), and reads its three position values. It assumes those source
+positions are in feet, converts them to metres using `0.3048`, rounds
+positions to three decimal places, and writes:
 
-The extracted CSV can support inspection of sampled ball positions after its
-source axes and time precision are resolved. The spreadsheet appears to hold
-five selected position/velocity records, but currently lacks documented units
-for velocity and links to events or outcomes. Neither file alone satisfies the
-shot-level validation schema. The new template carries the imported dataset's
-binary labels but intentionally leaves its seven required physical inputs
-empty. Validation should wait until provenance, coordinate mapping, precise
-timing where applicable, shot identity, release parameters, backspin, and
-outcome labels are available and checked.
+```csv
+event_id,timestamp_ms,shot_clock,x_m,y_m,z_m
+```
+
+This output is frame-level, not one row per shot. Before using it to derive
+release velocities, confirm the source JSON layout, entity ID, source units,
+axis meaning, timestamp precision, and event-to-shot mapping. The current
+export has a repeated rounded timestamp representation, so recover precise
+source times before estimating velocities or frame intervals. Shot-clock
+values may be missing.
+
+## 5. Selected initial-conditions CSV
+
+`selected_shot_initial_conditions.csv` has this header:
+
+```csv
+x_m,y_m,z_m,v0x,v0y,v0z
+```
+
+It contains five records converted from the former workbook, with blank
+worksheet rows omitted. The field names suggest positions in metres and
+velocity components, but the velocity units, coordinate axes, source method,
+and association with individual shots are not documented. It has no shot ID,
+backspin, or observed outcome.
+
+The `x_m`, `y_m`, and `z_m` names also do not by themselves prove that these
+values use the simulation axes. For example, if `y_m` is meant to be vertical
+release height, its observed values (approximately 7.7–10.8 m) need
+investigation before they can be used as basketball release heights.
+
+## 6. Preparation requirements before validation
+
+To produce a CSV usable by the current `validation.py`:
+
+1. Establish data provenance, access terms, source units, and source coordinate
+   axes.
+2. Define one row per shot and assign a unique integer `shot_id`. Keep a
+   documented mapping from that ID to source event/frame records.
+3. Provide ball-centre release coordinates transformed to the model axes and
+   expressed in metres.
+4. Provide initial velocity components in the same axes and in metres per
+   second. If deriving them from positions, use ordered samples with verified
+   timestamps and document the estimation method and uncertainty.
+5. Provide backspin in rad/s with its sign converted to the model's positive-z
+   convention. Do not use a gyroscope component without verifying sensor
+   orientation, units, calibration, and that it represents ball spin.
+6. Annotate the observed outcome using one of the supported labels. Preserve
+   binary-only labels as binary; do not infer contact subtype.
+7. Check all required fields, unique IDs, finite numeric values, outcome
+   labels, plausible coordinate ranges, and missing/duplicate records.
+8. Keep raw data unchanged and store prepared shot-level data separately.
+   Report sample size, exclusions, label granularity, input derivation, and
+   uncertainty.
+
+The project's planned sources include public anonymised tracking data and
+approximately 20–30 group-member free throws filmed at 60 fps. These are
+plans, not confirmation of the current files' provenance or completed
+empirical validation. For team-member footage, obtain consent, store it
+locally, avoid retaining identifying face data, and delete it after the final
+report.
+
+## 7. Readiness of current data
+
+Neither current CSV satisfies the validation input contract:
+
+- The tracking extract has no release velocity, backspin, shot-level outcome,
+  or confirmed mapping from event IDs to shots.
+- The selected initial-conditions file lacks an integer shot ID, backspin,
+  actual outcome, and verified units/axes. Its possible vertical coordinates
+  require review.
+
+Do not pass either file directly to `validation.py`. A valid validation file
+must contain all nine required columns with integer IDs, finite physical
+inputs in the defined units/conventions, and a supported observed outcome.

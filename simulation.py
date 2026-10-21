@@ -29,7 +29,7 @@ import numpy as np
 
 from physics import rk4_step, spin_vector, release_velocity, BALL_RADIUS
 from collision import (
-    detect_any, reflect, RESTITUTION,
+    detect_all, resolve_contacts,
     RIM_HEIGHT, RIM_RADIUS, RIM_CENTER, BACKBOARD_X,
 )
 
@@ -139,20 +139,21 @@ def simulate_shot(release_pos, release_vel, backspin_rate,
                 break
 
         # 3) 碰撞检测与响应 (篮板/篮筐)
-        col = detect_any(state[0:3])
-        if col is not None:
-            # 只有球正朝表面运动 (v·n < 0) 才真正反弹; 否则只是擦碰/已远离
-            vn = float(np.dot(state[3:6], col.normal))
-            if vn < 0.0:
-                state[3:6] = reflect(state[3:6], col.normal, RESTITUTION)
-                if col.kind == "backboard":
-                    has_hit_board = True
-                else:                       # "rim"
-                    has_hit_rim = True
-                contacts.append(col.kind)
-                bounce_count += 1
-            # 位置修正: 无论是否反弹, 都把嵌入的球推出表面
-            state[0:3] = state[0:3] + col.normal * col.penetration
+        collisions = detect_all(state[0:3])
+        if collisions:
+            # Record all incoming contacts before resolving their combined effect.
+            incoming_kinds = [
+                col.kind for col in collisions
+                if float(np.dot(state[3:6], col.normal)) < 0.0
+            ]
+            state[0:3], state[3:6] = resolve_contacts(
+                state[0:3], state[3:6], collisions
+            )
+            if incoming_kinds:
+                has_hit_board |= "backboard" in incoming_kinds
+                has_hit_rim |= "rim" in incoming_kinds
+                contacts.extend(incoming_kinds)
+                bounce_count += len(incoming_kinds)
 
         # 4) 记录本帧
         times.append(t)

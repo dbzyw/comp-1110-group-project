@@ -9,7 +9,7 @@ cd <项目目录>
 pip install -r requirements.txt
 ```
 
-核心依赖只有 `numpy` 和 `matplotlib`，建议 Python 3.10+。生成交互式 HTML 才需额外 `pip install plotly`。不装 Python 的队友可直接双击 `basketball_shot_2d.exe`（2D 交互器打包版）。
+核心依赖只有 `numpy` 和 `matplotlib`，建议 Python 3.10+。生成交互式 HTML 才需额外 `pip install plotly`。
 
 ## 第二步：按顺序跑通自检
 

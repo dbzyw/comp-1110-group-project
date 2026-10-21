@@ -1,7 +1,7 @@
 # 交互式 2D 投篮模拟器使用指南（basketball_shot_2d.py）
 
 > 对应代码：根目录 `basketball_shot_2d.py`（单文件、纯 `numpy` + `matplotlib`，无需其他依赖）。
-> 运行方式：`python basketball_shot_2d.py`，弹出 TkAgg 窗口；或双击 `basketball_shot_2d.exe`。
+> 运行方式：`python basketball_shot_2d.py`，弹出 TkAgg 窗口。
 > 本文只讲"怎么用"；物理与实现细节见 [SIMULATION_2D_PHYSICS.md](SIMULATION_2D_PHYSICS.md)。
 
 ## 目录

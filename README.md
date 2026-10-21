@@ -44,9 +44,9 @@
 - 篮板/篮筐碰撞对最终命中结果的影响
 - 通过验证框架评估模拟与真实数据的偏差
 
-## 2. 快速开始（免安装版）
+## 2. 快速开始
 
-不想装 Python 的同学，直接下载仓库根目录的 [`basketball_shot_2d.exe`](basketball_shot_2d.exe)（2D 交互式模拟器的 PyInstaller 打包版），双击即可运行，无需任何依赖。效果预览见 [SIMULATION_2D_DEMOS.md](SIMULATION_2D_DEMOS.md) 中的 6 个演示 GIF（空心、打板、弹筐、三分等典型场景）。
+运行 2D 交互式模拟器需要 Python 和项目依赖，详见 [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md)。效果预览见 [SIMULATION_2D_DEMOS.md](SIMULATION_2D_DEMOS.md) 中的 6 个演示 GIF（空心、打板、弹筐、三分等典型场景）。
 
 浏览器双击 [`basketball_interactive.html`](basketball_interactive.html) 可看 (角度 × 后旋) 扫描动画，无需 Python，但需要联网加载 plotly.js CDN。
 
@@ -115,7 +115,6 @@ omega = (0, 0, +omega)
 | 文件 | 作用 |
 |---|---|
 | `basketball_shot_2d.py` | 交互式 2D 投篮模拟器（滑块 + 动画 + 速度窗口扫描）；`--check` 跑 6 个文档场景无头自检 |
-| `basketball_shot_2d.exe` | 上者的 PyInstaller 打包版，双击即用，无需 Python |
 | `physics.py` | 定义物理常数（含 `*_2D` 两套）、三力模型和 RK4 积分函数（3D 与 2D） |
 | `collision.py` | 3D 篮板/篮筐碰撞检测（含边缘/角落、批量、多接触有限轮处理）与 2D 板面穿越/前后缘反弹几何，含归一化结局映射 |
 | `simulation.py` | `simulate_shot`（3D 单发，碰撞循环 + CSV）、`simulate_2d`/`fit_segments_2d`/`readout_2d`（与交互器同源的库版 2D 引擎） |
@@ -238,7 +237,7 @@ python make_interactive.py --offline --out basketball_interactive_offline.html
 
 - 先看 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) 了解项目背景和接口说明
 - 再从 [HANDOVER_GUIDE.md](HANDOVER_GUIDE.md) 按顺序执行脚本
-- 想快速上手玩模拟器：直接双击 `basketball_shot_2d.exe`，或看 [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md)
+- 想快速上手玩模拟器：按 [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md) 的步骤运行
 - 改碰撞相关代码前，先读 [Collision.md](Collision.md) 和 `test_collision.py`，改完跑一遍测试
 - 改任何链路的代码后，跑对应脚本的 `--check` / `--selfcheck`，再跑 `test_*.py`，确认逐位一致再提交
 - 修改代码时优先参考各个 Python 文件中的 docstring 和函数说明

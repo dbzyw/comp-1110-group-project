@@ -161,8 +161,7 @@ The project is complete when it provides:
 
 ## 9. Related project documents
 
-- [Project plan (version 3ce56a5a)](./Basketball-Free-Throw-Project-Plan-v2-3ce56a5a.md)
-- [Project plan (version eaf0a7e2)](./Basketball-Free-Throw-Project-Plan-v2-eaf0a7e2.md)
+- [Project plan](./Basketball-Free-Throw-Project-Plan-v2.md)
 - [Progress presentation notes](./COMP1110_Basketball_Shot_Simulation_Progress-ea2c2143.md)
 - [Project README](../README.md)
 - [Project context and interfaces](../PROJECT_CONTEXT.md)

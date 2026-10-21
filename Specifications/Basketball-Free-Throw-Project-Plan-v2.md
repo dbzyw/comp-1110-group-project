@@ -1,5 +1,3 @@
-<!-- dsh-office-markdown converter=builtin fidelity=limited at=2026-10-21T04:52:50.198Z srcbytes=201572 srchash=3d0503032065e2d4 -->
-<!-- 由 dsh-plugin-office-markdown 内置兜底转换器生成（非 MarkItDown），版式/图表/批注/图片等信息可能缺失，保真度有限。 -->
 > 源文件：`Basketball-Free-Throw-Project-Plan-v2.pdf`
 > 转换器：内置兜底（fallback.py）
 

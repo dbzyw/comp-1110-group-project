@@ -95,16 +95,27 @@ while loading the CSV.
 
 ## 4. Tracking extraction output
 
-`extract.py` expects a JSON document with an `events` array. It processes the
-first 50 events, reads the event ID, timestamp, and shot clock from fixed
-positions in each `moment`, selects the entity whose ID is `-1` (commented as
-the ball), and reads its three position values. It assumes those source
+`extract.py` expects a JSON document with an `events` array. It is now driven
+by an argparse CLI (`--json`/`--out`/`--events`/`--ball-entity`), so the input
+file name, the number of events, and the ball `entity_id` no longer have to be
+hand-edited in source; `--events -1` reads every event. By default it processes
+the first 50 events, reads the event ID, timestamp, and shot clock from fixed
+positions in each `moment`, selects the entity whose ID is `-1` (the ball),
+skips malformed frames that are too short to contain the entity list instead of
+crashing, and reads its three position values. It assumes those source
 positions are in feet, converts them to metres using `0.3048`, rounds
 positions to three decimal places, and writes:
 
 ```csv
 event_id,timestamp_ms,shot_clock,x_m,y_m,z_m
 ```
+
+`--selfcheck` runs the same extraction against a built-in two-frame fixture
+(12.0 ft/8.0 ft/0.0 ft → 3.658/2.438/0.0 m) and asserts row count, column
+order, and unit conversion, so the logic can be verified end-to-end without a
+`sample.json` that is not present in this folder. `sample.json` itself must be
+supplied externally; `extract.py` does not guess a file name and exits with a
+clear error if the input is missing or the JSON fails to parse.
 
 This output is frame-level, not one row per shot. Before using it to derive
 release velocities, confirm the source JSON layout, entity ID, source units,

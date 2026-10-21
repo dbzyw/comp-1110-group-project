@@ -63,7 +63,7 @@
 - **结局占比分解图**：`outcome_breakdown.png`，swish / rim-in / board-in 占比随参数的变化
 - **轨迹对比**：比较真空瞄准 vs 真实飞行轨迹，并包含罚球与三分球对比
 - **单元测试与自检**：`test_core.py` / `test_collision.py` / `test_experiment.py`，加上各脚本自带的无头自检（`--check`、`--selfcheck`、`python physics.py`、`python collision.py`）
-- **模型验证**：报告一致率、Wilson 95% 置信区间、Cohen's kappa、MCC/precision/recall/F1 以及多分类混淆矩阵
+- **模型验证**：报告一致率、Wilson 95% 置信区间、Cohen's kappa、MCC/precision/recall/F1 以及多分类混淆矩阵；对 `data_validation/valid_data.csv`（305 行）跑 `python validation.py data_validation/valid_data.csv` 的逐发预测与指标已权威记录在 [data_validation/model_validation_results.md](data_validation/model_validation_results.md)（当前 154/305 = 50.49%、κ = 0.012、模型预测 74 made / 231 miss、made 类 recall 24.84%——因输入是 `data_prep.py` 假设合成，**不是经验验证结论**）
 
 ## 4. ⚠️ 两套模型常数不可混用
 
@@ -251,6 +251,7 @@ python make_interactive.py --offline --out basketball_interactive_offline.html
 - 2D 模拟器： [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md) / [SIMULATION_2D_PHYSICS.md](SIMULATION_2D_PHYSICS.md)
 - 碰撞模型细节： [Collision.md](Collision.md)
 - 验证数据规范： [data_validation/DATA_SPECIFICATION.md](data_validation/DATA_SPECIFICATION.md)
+- 验证逐发预测与指标明细（可复现）： [data_validation/model_validation_results.md](data_validation/model_validation_results.md)
 - 报告草稿： [Report_Draft.md](Report_Draft.md)，汇报大纲： [Presentation_Outline.md](Presentation_Outline.md)
 
 如果你和队友都在同一个项目里协作，这个 README 可以作为"项目总入口"，帮助快速定位脚本、数据和结果文件。

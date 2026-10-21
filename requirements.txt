@@ -1,4 +1,21 @@
-# 项目依赖（核心仅 numpy + matplotlib）
-# 如需固定精确版本，在项目目录运行： pip freeze > requirements.txt
+# 项目依赖说明（COMP 1110 纯物理篮球投篮模拟）
+# 建议 Python 3.10+（3.10/3.11/3.12 均已实测）。想固定精确版本时，在项目目录运行：
+#   pip install -r requirements.txt
+#   python -m pip freeze > requirements.txt   # 覆盖本文件为锁定版本
+# 见下：核心流程只需要 numpy + matplotlib，其余全部是可选或仅服务于某个脚本。
+
+# ── 核心：所有 3D/2D 模拟、扫描、绘图、验证都只用这两项 ──
 numpy>=1.24.0
 matplotlib>=3.7.0
+
+# ── 仅 data_validation/extract.py 需要（把 SportVU 逐帧 JSON 抽成 CSV）──
+# 主项目脚本（simulation/experiment/plotting/validation）读数据用的是标准库 csv，不需要 pandas。
+# 若你跳过 extract.py 这一支，可不装。
+pandas>=1.5.0
+
+# ── 可选：make_interactive.py 生成 Plotly 交互式 HTML 浏览器（含 --offline 内嵌版）──
+# plotly>=5.9.0
+
+# ── 可选：用 pytest 收集/运行 unittest 用例更顺手；当前 test_*.py 全是标准库 unittest，
+#    直接 `python test_core.py` 等即可跑，无需 pytest。──
+# pytest>=7.0.0

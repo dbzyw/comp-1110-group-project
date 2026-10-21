@@ -126,7 +126,7 @@ omega = (0, 0, +omega)
 | `test_core.py` | 核心物理/碰撞/模拟的单元测试（无第三方依赖） |
 | `test_collision.py` | 碰撞几何与速度响应的专项测试 |
 | `test_experiment.py` | 扫描 CSV 输出与配置元数据的可复现性测试 |
-| `data_validation/` | 第一阶段验证数据暂存区：`DATA_SPECIFICATION.md`（数据规范）、`extract.py`（SportVU 抽取脚本）、抽取的球轨迹 CSV 与占位模板 |
+| `data_validation/` | 第一阶段验证数据暂存区：`DATA_SPECIFICATION.md`（数据规范）、`extract.py`（SportVU 轨迹抽取）、`data_prep.py`（出手参数合成器）、原始数据集 `basketball_shooting_dataset.csv`（300 行）、`valid_data.csv`（305 行，可被 `validation.py` 读取）、抽取轨迹 CSV 与 5 条出手初值 |
 | `Specifications/` | 计划书、规格说明与进度汇报（`.md` + 原版 `.pdf` / `.pptx`） |
 | `SIMULATION_2D_GUIDE.md` | 2D 模拟器使用指南（滑块/按钮/开关/读数） |
 | `SIMULATION_2D_PHYSICS.md` | 2D 模拟器物理模型与常数（含与 3D 流程的差异说明） |
@@ -230,7 +230,7 @@ python make_interactive.py --offline --out basketball_interactive_offline.html
 | `free_vs_three_drag.png` | `python plotting.py` | 罚球 vs 三分球空气阻力偏差图 |
 | `basketball_interactive.html` | `python make_interactive.py` | 带滑块的交互式轨迹浏览器（CDN 版，需联网） |
 
-`data_validation/` 目录下的 CSV（`extracted_ball_tracks.csv`、`selected_shot_initial_conditions.csv`、`basketball_shots_validation_template.csv`）是第一阶段真实数据导入的暂存件，尚未构成可运行的验证输入；字段约定与待办见 [data_validation/DATA_SPECIFICATION.md](data_validation/DATA_SPECIFICATION.md)。
+`data_validation/` 目录是第一阶段真实数据导入的暂存区：`extracted_ball_tracks.csv`（24,073 行帧级轨迹，时间戳精度/轴约定未确认）、`selected_shot_initial_conditions.csv`（5 条，单位与归属未记录，且正 `x_m`、`y_m`≈7.7–10.8 m 与模型坐标约定冲突）、原始 `basketball_shooting_dataset.csv`（300 行，仅二元 `Shot_Result`）。`data_prep.py` 在**显式假设**（正面距离映射、51° 真空解速度、统一 23 rad/s、缺省高度 2.0 m；末尾 5 条按指令假设 `made`）下合成了 `valid_data.csv`（305 行，`validation.py` 可直接解析）。此前的 300 行占位模板 CSV 已被替换删除。这些文件能跑通验证链路，但指标度量的是假设而非实测运动学——**还不是经验证结论**；字段规范、假设清单与验收步骤见 [data_validation/DATA_SPECIFICATION.md](data_validation/DATA_SPECIFICATION.md)。
 
 ## 10. 团队协作建议
 

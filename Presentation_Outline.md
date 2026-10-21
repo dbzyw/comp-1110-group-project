@@ -90,7 +90,7 @@
 
 **演讲**：
 - 验证实现已报告一致率、**Wilson 95% CI**、Cohen's kappa、MCC、precision/recall/F1 与四类混淆矩阵。
-- 当前 `valid_data.csv` 有 305 行，运行结果为 **152/305 一致（49.8%；Wilson 95% CI [44.3%, 55.4%]），κ = 0.000**；该批输入含假设生成的出手参数、二元标签和 5 条未经核实的初值，模型预测全部为 miss。
+- 当前 `valid_data.csv` 有 305 行，`python validation.py data_validation/valid_data.csv` 的运行结果为 **154/305 一致（50.49%；Wilson 95% CI [44.91%, 56.06%]），κ = 0.012**；模型预测 74 made / 231 miss，made 类 recall 仅 24.84%（38/153）。该批输入含假设生成的出手参数、二元标签和 5 条未经核实的初值（IDs 301–305 该 5 行 0/5 一致）；逐发明细见 `data_validation/model_validation_results.md`。一致率几乎等于 49.92% 的随机基线。
 - 所以该数值不是经验准确率；它反映的是当前合成假设及标签。SportVU 导出仍需恢复时间精度并核实坐标系，出手速度、后旋、样本关联和真实结局也尚未齐全。
 - 自洽占位数据的 20/20、100% agreement（κ = 1）只证明验证代码链路能运行，不能证明模型准确。
 

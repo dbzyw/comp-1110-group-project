@@ -225,7 +225,7 @@ def spin_vector(backspin_rate: float) -> np.ndarray:
 
 def integrate(release_pos, release_vel, backspin_rate,
               dt: float = 1e-3, t_max: float = 3.0, stop=None,
-              stop_at_floor: bool = True):
+              stop_at_floor: bool = True) -> tuple[np.ndarray, np.ndarray]:
     """
     从出手时刻积分整条轨迹, 直到落地 (y < 0)、t_max 或 stop(state) 为 True。
 
@@ -323,7 +323,7 @@ def spin_in_plane_2d(spin_rate: float, angle_deg: float) -> float:
     return float(spin_rate) * math.sin(math.radians(float(angle_deg)))
 
 
-def acceleration_2d(vx: float, vy: float, spin_z: float, air: bool = True):
+def acceleration_2d(vx: float, vy: float, spin_z: float, air: bool = True) -> tuple[float, float]:
     """
     2D 合加速度 (ax, ay) [m/s^2]: 重力 + 二次阻力 + 马格努斯升力。
 
@@ -368,7 +368,7 @@ def rk4_step_2d(state, dt: float, spin_z: float, air: bool = True) -> np.ndarray
     return state + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
 
-def ideal_arc_coeffs_2d(h0: float, angle_deg: float, v: float):
+def ideal_arc_coeffs_2d(h0: float, angle_deg: float, v: float) -> tuple[float, float]:
     """
     无空气抛物线的形状系数 (slope, a2): y = h0 + slope*x - a2*x^2。
 
@@ -386,7 +386,7 @@ def ideal_arc_coeffs_2d(h0: float, angle_deg: float, v: float):
     return math.tan(th), G_2D / (2.0 * v * v * c * c)
 
 
-def ideal_parabola_2d(h0: float, angle_deg: float, v: float, n: int = 400):
+def ideal_parabola_2d(h0: float, angle_deg: float, v: float, n: int = 400) -> tuple[np.ndarray, np.ndarray, float, float, float]:
     """
     同参数的真空抛物线 (无空气、无升力)。
 
@@ -416,7 +416,7 @@ def ideal_parabola_2d(h0: float, angle_deg: float, v: float, n: int = 400):
 
 
 def vacuum_aim_2d(h0: float, angle_deg: float, dist: float,
-                  rim_height: float = RIM_HEIGHT_2D):
+                  rim_height: float = RIM_HEIGHT_2D) -> tuple[float, float] | None:
     """
     以给定仰角用真空抛物线命中 (dist, rim_height) 所需的最小出手速率。
 
@@ -436,7 +436,7 @@ def vacuum_aim_2d(h0: float, angle_deg: float, dist: float,
     return v, rhs
 
 
-def air_load_2d(v: float, spin_rate: float, angle_deg: float):
+def air_load_2d(v: float, spin_rate: float, angle_deg: float) -> tuple[float, float, float]:
     """
     出手瞬间的空气项加速度 [m/s^2]:
         drag   = BD * v^2            (与飞行方向相反)

@@ -1,2 +1,45 @@
+# Python 字节码 / 缓存
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# 测试与覆盖率产物（这些不该进版本库；正式结果文件已被显式提交）
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# 打包（PyInstaller）产物目录——注意：分发用的 basketball_shot_2d.exe 是刻意提交的，
+# 所以只忽略构建中间目录，不忽略该 exe 本身。
+build/
+dist/
+*.spec
+
+# 虚拟环境 / 本地私有
+.venv/
+venv/
+env/
+ENV/
+
+# 编辑器 / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 操作系统临时文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# 日志 / 临时导出（跑脚本时落在本地、但不应提交的东西）
+*.log
+*.tmp
+tmp/
+*.bak
+
+# 例外：即便上面有 *.spec / build 规则，也绝不误伤这些刻意纳入版本库的产物
+# !data.csv
+# !trajectory.csv

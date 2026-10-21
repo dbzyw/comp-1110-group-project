@@ -1,78 +1,160 @@
-# 纯物理篮球投篮模拟 (Pure-Physics Basketball Shot Simulation)
+# 纯物理篮球投篮模拟
 
-一个**不依赖机器学习**的篮球投篮仿真。给定出手点、出手速度向量、后旋角速度，用四阶 Runge-Kutta（RK4）数值积分求解球的飞行，受力包括**重力、二次空气阻力、马格努斯升力**，并与**篮板（竖直平面）**、**篮筐（圆环）**做恢复系数 `e = 0.7` 的碰撞，最终判定 **空心（swish）/ 弹框进（rim-in）/ 打板进（board-in）/ 未进（miss）** 四种结局。
+一个完全基于物理模型的篮球投篮仿真项目，不依赖机器学习或数据驱动训练。给定出手点、出手速度向量和后旋角速度，程序会使用四阶 Runge–Kutta（RK4）数值积分计算球的飞行轨迹，并在此过程中考虑：
 
-## 核心特性
+- 重力
+- 二次空气阻力
+- 马格努斯升力（由后旋产生）
+- 篮板与篮筐的刚性碰撞
 
-- **三力模型**：重力 + 二次空气阻力（∝ |v|·v）+ 马格努斯升力（后旋，∝ ω×v）
-- **RK4 积分**：单发（`rk4_step`）与批量向量化（`rk4_step_batch`）两种
-- **碰撞检测**：篮板（平面-球）与篮筐（圆环-球），恢复系数反弹 + 位置修正
-- **命中概率热力图**：出手角度 × 后旋速率 → P(make)，含 50% 等值线与峰值标记
-- **轨迹对比**：真空瞄准 vs 真实（阻力 + 后旋）飞行，含罚球 vs 三分球对比
-- **模型验证**：一致率 + Wilson 置信区间 + Cohen's kappa + 分结局（swish/rim-in/board-in/miss）混淆矩阵
+最终会判断这次投篮属于以下四种结果：
 
-## 坐标系与关键常数
+- `swish`：空心
+- `rim-in`：碰筐后进
+- `board-in`：打板后进
+- `miss`：未进
 
-- 坐标系（右手系，SI 单位）：`x` 从投手指向篮筐，`y` 竖直向上，`z` 侧向
-- 篮板位于 `x = 0`，投手在 `-x` 一侧；筐心 `(-0.375, 3.05, 0)`
-- 纯后旋：自旋向量 `ω = (0, 0, +ω)`，对向前飞行的球产生向上升力
-- NBA 场地：筐高 3.05 m、筐直径 0.45 m、筐心距篮板 0.375 m、恢复系数 e = 0.7
+这个项目同时包含了参数扫描、可视化结果和模型验证，适合用于研究不同出手角度和后旋对命中率的影响。
 
-## 文件结构
+## 1. 项目目标
 
-| 文件 | 用途 |
+我们的目标不是训练一个预测模型，而是构建一个可解释、可重现、可验证的物理模拟框架，用来回答下面这个问题：
+
+> 在给定出手几何、初速度和后旋的情况下，纯物理模型能否稳定复现真实投篮中出现的 swish / rim-in / board-in / miss 这四类结果？
+
+项目的研究重点包括：
+
+- 出手角度对飞行轨迹的影响
+- 后旋对球的升力和落点的影响
+- 空气阻力在罚球和三分球中的差异
+- 篮板/篮筐碰撞对最终命中结果的影响
+- 通过验证框架评估模拟与真实数据的偏差
+
+## 2. 核心特性
+
+- **三力模型**：重力 + 二次空气阻力（∝ |v|·v）+ 马格努斯升力（后旋，∝ ω × v）
+- **RK4 数值积分**：支持单发模拟和批量向量化计算
+- **碰撞检测**：篮板（平面-球碰撞）与篮筐（圆环-球碰撞）
+- **恢复系数**：碰撞使用固定恢复系数 `e = 0.7`
+- **命中概率热力图**：覆盖出手角度 × 后旋速率的参数扫描，输出命中概率面
+- **轨迹对比**：比较真空瞄准 vs 真实飞行轨迹，并包含罚球与三分球对比
+- **模型验证**：报告一致率、Wilson 95% 置信区间、Cohen's kappa 以及多分类混淆矩阵
+
+## 3. 物理设定
+
+### 3.1 坐标系
+
+- 坐标系为右手系，单位为 SI
+- `x` 方向从投手指向篮筐
+- `y` 方向竖直向上
+- `z` 方向为横向侧向
+
+### 3.2 场地几何
+
+- 篮板位于 `x = 0`
+- 投手位于 `-x` 侧
+- 篮筐中心位于 `(-0.375, 3.05, 0)`
+- 篮筐高度：`3.05 m`
+- 篮筐直径：`0.45 m`（半径 `0.225 m`）
+- 篮心到篮板距离：`0.375 m`
+- 反弹恢复系数：`e = 0.7`
+
+### 3.3 后旋方向
+
+纯后旋定义为：
+
+```python
+omega = (0, 0, +omega)
+```
+
+这样会产生一个向上的 Magnus 升力，因此后旋越大，球越容易“托起来”。
+
+## 4. 文件结构
+
+| 文件 | 作用 |
 |---|---|
-| `physics.py` | 物理常数、三力、导数函数、RK4 积分（单发 + 批量向量化） |
-| `collision.py` | NBA 场地几何、篮板/篮筐碰撞检测、恢复系数反弹（单发 + 批量） |
-| `simulation.py` | 完整投篮循环（RK4 + 碰撞 + 得分判定）、轨迹 CSV 导出 |
-| `experiment.py` | 出手角度 × 后旋速率 参数扫描（向量化），输出 `data.csv`（罚球）/ `data_three.csv`（三分球） |
-| `plotting.py` | 命中概率热力图 + 轨迹对比（罚球/三分球）（dpi=300 PNG） |
-| `validation.py` | 模型验证框架 + 占位数据生成 |
+| `physics.py` | 定义物理常数、三力模型和 RK4 积分函数 |
+| `collision.py` | 篮板/篮筐几何与碰撞检测、恢复系数反弹 |
+| `simulation.py` | 单发投篮模拟、碰撞循环、出手判定与轨迹保存 |
+| `experiment.py` | 角度和后旋的参数扫描，生成 `data.csv` / `data_three.csv` |
+| `plotting.py` | 生成命中概率热力图与轨迹对比图 |
+| `validation.py` | 验证流程、评估指标和占位数据生成 |
+| `requirements.txt` | Python 依赖列表 |
+| `HANDOVER_GUIDE.md` | 交接说明与运行顺序 |
+| `PROJECT_CONTEXT.md` | 给协作者/AI 助手的背景说明 |
 
-## 环境配置
+## 5. 环境配置
 
-要求 Python 3.10+，依赖见 [requirements.txt](requirements.txt)：
+要求 Python 3.10+。依赖见 [requirements.txt](requirements.txt)：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-核心依赖只有 `numpy` 和 `matplotlib`。
+核心依赖通常只有：
 
-## 运行指南（推荐顺序）
+- `numpy`
+- `matplotlib`
+
+## 6. 推荐运行顺序
+
+建议按下面顺序执行，这样最容易确认每一部分是否正常工作：
 
 ```bash
-# 1) 物理引擎自检（打印最高点、落地时间等）
+# 1) 物理引擎自检
 python physics.py
 
-# 2) 碰撞自检（打印 5 组碰撞前后的速度向量）
+# 2) 碰撞自检
 python collision.py
 
-# 3) 单发罚球模拟（打印结局，生成 trajectory.csv）
+# 3) 单发罚球模拟：输出结果并生成 trajectory.csv
 python simulation.py
 
-# 4) 角度 × 后旋扫描（打印进度条，生成 data.csv 罚球 + data_three.csv 三分球）
+# 4) 参数扫描：角度 × 后旋，生成罚球/三分球数据
 python experiment.py
 
-# 5) 画图（生成命中概率热力图 + 轨迹对比图，含三分球）
+# 5) 生成图表：热力图 + 轨迹对比
 python plotting.py
 
-# 6) 验证（先造占位数据，再跑一致性）
+# 6) 验证：先生成示例数据，再跑一致性验证
 python validation.py --make-dummy
 python validation.py
 ```
 
-## 数据文件说明
+如果需要只跑三分球扩展扫描，可以使用：
 
-| 文件 | 来源 | 内容 |
+```bash
+python experiment.py three
+```
+
+## 7. 生成文件说明
+
+| 文件 | 生成方式 | 内容 |
 |---|---|---|
-| `data.csv` | `experiment.py` 生成 | 罚球扫描结果（列 `angle,backspin,p_make`） |
-| `data_three.csv` | `experiment.py three` 生成 | 三分球扫描结果（列 `angle,backspin,p_make`） |
-| `trajectory.csv` | `simulation.py` 生成 | 单发轨迹（列 `time,x,y,z,vx,vy,vz`） |
-| `dummy_data.csv` | `validation.py --make-dummy` 生成 | 验证占位数据 |
-| `make_probability.png` / `make_probability_three.png` / `make_probability_comparison.png` / `trajectory_comparison.png` / `trajectory_comparison_three.png` / `free_vs_three_drag.png` | `plotting.py` 生成 | 结果图 |
+| `trajectory.csv` | `python simulation.py` | 单发投篮轨迹，列为 `time, x, y, z, vx, vy, vz` |
+| `data.csv` | `python experiment.py` | 罚球扫描结果 |
+| `data_three.csv` | `python experiment.py three` | 三分球扫描结果 |
+| `dummy_data.csv` | `python validation.py --make-dummy` | 验证用占位数据 |
+| `make_probability.png` | `python plotting.py` | 罚球命中概率图 |
+| `make_probability_three.png` | `python plotting.py` | 三分球命中概率图 |
+| `make_probability_comparison.png` | `python plotting.py` | 罚球/三分球并排对比 |
+| `trajectory_comparison.png` | `python plotting.py` | 罚球轨迹比较 |
+| `trajectory_comparison_three.png` | `python plotting.py` | 三分球轨迹比较 |
+| `free_vs_three_drag.png` | `python plotting.py` | 罚球 vs 三分球空气阻力偏差图 |
 
-## 更多说明
+## 8. 团队协作建议
 
-- 交接步骤见 [HANDOVER_GUIDE.md](HANDOVER_GUIDE.md)
-- 供 AI 助手 / 协作者快速上手的上下文见 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)
+这个 README 适合给团队成员快速了解项目，用作项目入口文档。建议团队成员在协作时遵循以下习惯：
+
+- 先看 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) 了解项目背景和接口说明
+- 再从 [HANDOVER_GUIDE.md](HANDOVER_GUIDE.md) 按顺序执行脚本
+- 修改代码时优先参考各个 Python 文件中的 docstring 和函数说明
+- 若要增加新实验或新数据集，先更新说明，再补充图表/验证结果
+
+## 9. 进一步说明
+
+- 相关交接说明： [HANDOVER_GUIDE.md](HANDOVER_GUIDE.md)
+- AI/协作者上下文说明： [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)
+- 详细项目计划与技术背景： [Specifications/](Specifications/)
+
+如果你和队友都在同一个项目里协作，这个 README 可以作为“项目总入口”，帮助快速定位脚本、数据和结果文件。

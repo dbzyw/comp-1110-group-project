@@ -1,12 +1,26 @@
 """
-plotting.py — 可视化: 命中概率热力图 + 真空 vs 真实轨迹对比 + 结局分解。
+plotting.py — 命中概率热力图与轨迹对比可视化
+
+提供五类图 (命中概率热力图 / 罚球vs三分对比 / 结局分解 /
+真空vs真实轨迹对比 / 阻力偏差对比)，并包含以下修正与校验:
+
+    * 修复显示 bug: plot_free_vs_three 原先把出手点到筐心的水平距离算成
+      X0 - rim_x = -4.195 / THREE_X0 - rim_x = -6.75，图例与柱标签印出
+      "-4.19 m" / "-6.75 m" (负距离)。改进版取绝对值, 与其余图注一致
+      (这是模型图注的有意修正)
+    * _read_sweep: 校验 p_make 值全部有限且落在 [0, 1]、网格行序与
+      angle × backspin 展开一致 (CSV 被手工编辑出错时给出明确报错,
+      而不是悄悄画出错位热力图)
+    * vacuum_launch_angle / vacuum_trajectory / interp_y_at_x:
+      v <= 0、cos(θ) ≈ 0 (垂直发射)、x_target 在轨迹范围外时显式报错,
+      而不是 ZeroDivisionError / 静默 clip 外推
+    * 新增 `python plotting.py selfcheck`: 把全部图重画到临时
+      目录做烟雾测试 (不改变默认命令行行为)
 
 用法:
-    python plotting.py                 # 画全部图 (含 swish/rim-in/board-in 分解)
-    python plotting.py breakdown       # 只画结局分解图 outcome_breakdown.png
-    (读取 data.csv; 输出 dpi=300 的 PNG)
-
-依赖: matplotlib + numpy。
+    python plotting.py                 # 画全部图
+    python plotting.py breakdown       # 只画结局分解图
+    python plotting.py selfcheck       # 全部图重画到临时目录自检
 """
 
 from pathlib import Path
@@ -50,6 +64,21 @@ def _read_sweep(csv_path=DATA_CSV):
         raise ValueError(
             f"{csv_path} 网格不完整: 期望 {expected} 行 "
             f"({len(angles)} 角度 × {len(backspins)} 后旋), 实际 {data.size} 行")
+
+    # 改进版新增的两道校验 (experiment.py 生成的文件天然满足)
+    p = data["p_make"]
+    if not np.all(np.isfinite(p)) or np.any(p < 0.0) or np.any(p > 1.0):
+        raise ValueError(
+            f"{csv_path} 的 p_make 列必须全部落在 [0, 1] 且有限 "
+            f"(min={np.nanmin(p)}, max={np.nanmax(p)}) — CSV 可能被手工改坏")
+    grid_ok = (data["angle"].reshape(len(angles), len(backspins))
+               == angles[:, None]).all() and \
+              (data["backspin"].reshape(len(angles), len(backspins))
+               == backspins[None, :]).all()
+    if not grid_ok:
+        raise ValueError(
+            f"{csv_path} 行序与 '每个角度 × 每个后旋' 的展开顺序不一致 "
+            f"(应为角度外层、后旋内层; 用 experiment.py 重新生成)")
     return angles, backspins, data
 
 
@@ -202,7 +231,11 @@ def vacuum_launch_angle(x0, y0, x1, y1, v):
     """
     重力-only 抛体从 (x0, y0) 以速率 v 命中 (x1, y1) 所需仰角 [deg]。
     返回高弧线解 (角度较大的那个)。
+    改进版: v <= 0 显式报错 (原版 ZeroDivisionError)。
     """
+    v = float(v)
+    if v <= 0.0:
+        raise ValueError(f"v must be positive, got {v!r}")
     dx = x1 - x0
     dy = y1 - y0
     a = 0.5 * G * dx ** 2 / v ** 2
@@ -217,8 +250,17 @@ def vacuum_launch_angle(x0, y0, x1, y1, v):
 
 def vacuum_trajectory(x0, y0, v, angle_deg, x_end, n=300):
     """真空(仅重力)解析轨迹, 从 x0 到 x_end。"""
+    n = int(n)
+    if n < 2:
+        raise ValueError(f"n must be >= 2, got {n!r}")
+    v = float(v)
+    if v <= 0.0:
+        raise ValueError(f"v must be positive, got {v!r}")
     th = np.radians(angle_deg)
     vx, vy = v * np.cos(th), v * np.sin(th)
+    if abs(vx) < 1e-12:
+        raise ValueError(
+            f"angle_deg={angle_deg!r} is vertical; no x-monotone vacuum arc")
     t_end = (x_end - x0) / vx
     t = np.linspace(0.0, t_end, n)
     x = x0 + vx * t
@@ -227,11 +269,25 @@ def vacuum_trajectory(x0, y0, v, angle_deg, x_end, n=300):
 
 
 def interp_y_at_x(xs, ys, x_target):
-    """在轨迹上线性插值, 求 x = x_target 处的 y。"""
+    """
+    在轨迹上线性插值, 求 x = x_target 处的 y。
+
+    改进版: x_target 落在轨迹范围外时显式报错 (原版用 clip 静默外推端点值,
+    在“球根本没到筐面”的情形下会把偏差画成 ~0)。
+    """
+    xs = np.asarray(xs, dtype=float)
+    ys = np.asarray(ys, dtype=float)
+    if xs.shape != ys.shape or xs.ndim != 1 or xs.size < 2:
+        raise ValueError("xs/ys must be matching 1-D arrays with at least 2 points")
+    x_target = float(x_target)
+    if not (xs[0] <= x_target <= xs[-1]):
+        raise ValueError(
+            f"x_target={x_target:.3f} outside trajectory x-range "
+            f"[{xs[0]:.3f}, {xs[-1]:.3f}] — the shot never reached that plane")
     i = int(np.clip(np.searchsorted(xs, x_target), 1, len(xs) - 1))
     x0, x1 = xs[i - 1], xs[i]
     y0, y1 = ys[i - 1], ys[i]
-    frac = (x_target - x0) / (x1 - x0)
+    frac = (x_target - x0) / (x1 - x0) if x1 != x0 else 0.0
     return y0 + frac * (y1 - y0)
 
 
@@ -352,8 +408,11 @@ def plot_free_vs_three(out_png="free_vs_three_drag.png", dpi=300):
     _, xv_ft, yv_ft, xr_ft, yr_ft, yrim_ft, dev_ft = ft
     _, xv_tp, yv_tp, xr_tp, yr_tp, yrim_tp, dev_tp = tp
 
-    ft_dist = X0 - rim_x                     # 罚球出手点到筐心水平距离 ≈ 4.19 m
-    tp_dist = THREE_X0 - rim_x               # 三分出手点到筐心水平距离 = 6.75 m
+    # 出手点到筐心的水平距离。bug 修复: 原版直接写 X0 - rim_x / THREE_X0 -
+    # rim_x, 得到 -4.195 / -6.75, 图例和柱标签印成 "-4.19 m" / "-6.75 m";
+    # 距离应当是非负的, 这里取绝对值 (与 docstring 和其余图注保持一致)。
+    ft_dist = abs(X0 - rim_x)                # 罚球出手点到筐心水平距离 ≈ 4.19 m
+    tp_dist = abs(THREE_X0 - rim_x)          # 三分出手点到筐心水平距离 = 6.75 m
 
     fig, (ax0, ax1) = plt.subplots(
         1, 2, figsize=(12.0, 5.0),
@@ -407,24 +466,51 @@ def plot_free_vs_three(out_png="free_vs_three_drag.png", dpi=300):
 
 
 # ---------------------------------------------------------------------------
+# 全套图重画到指定目录 (原版也直接提供这个可组合入口)
+# ---------------------------------------------------------------------------
+def plot_all(out_dir=".", dpi=300):
+    """按原版 __main__ 的顺序画全部 7 张图, 输出到 out_dir 下。"""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True) if str(out_dir) not in ("", ".") else None
+    name = lambda f: str(out_dir / f) if str(out_dir) not in ("", ".") else f
+
+    plot_make_probability(DATA_CSV, name("make_probability.png"), dpi)
+    print()
+    plot_make_probability("data_three.csv", name("make_probability_three.png"), dpi)
+    print()
+    plot_make_probability_comparison(DATA_CSV, "data_three.csv",
+                                     name("make_probability_comparison.png"), dpi)
+    print()
+    plot_outcome_breakdown(DATA_CSV, name("outcome_breakdown.png"), dpi)
+    print()
+    plot_trajectory_comparison(name("trajectory_comparison.png"), dpi)
+    print()
+    plot_trajectory_comparison_three(name("trajectory_comparison_three.png"), dpi)
+    print()
+    plot_free_vs_three(name("free_vs_three_drag.png"), dpi)
+
+
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) > 1 and sys.argv[1].lower() == "breakdown":
+    mode = sys.argv[1].lower() if len(sys.argv) > 1 else "all"
+    if mode == "breakdown":
         # 只画结局分解图 (swish / rim-in / board-in)
         plot_outcome_breakdown()
+    elif mode == "selfcheck":
+        # 烟雾自检: 全部图重画到临时目录, 校验文件确实产出 (不污染仓库)
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            plot_all(td)
+            outs = sorted(Path(td).glob("*.png"))
+            sizes = [(p.name, p.stat().st_size) for p in outs]
+            bad = [n for n, sz in sizes if sz < 10_000]
+            print(f"\nselfcheck: {len(sizes)}/7 张图产出"
+                  + (f" , 异常偏小: {bad}" if bad else " , 全部大小正常"))
+            for n, sz in sizes:
+                print(f"  {n:<38} {sz / 1024:7.1f} KiB")
+            sys.exit(0 if len(sizes) == 7 and not bad else 1)
     else:
-        # 默认: 画全部图 (含结局分解)
-        plot_make_probability()
-        print()
-        plot_make_probability("data_three.csv", "make_probability_three.png")
-        print()
-        plot_make_probability_comparison()
-        print()
-        plot_outcome_breakdown()
-        print()
-        plot_trajectory_comparison()
-        print()
-        plot_trajectory_comparison_three()
-        print()
-        plot_free_vs_three()
+        # 默认: 与 plotting.py 的 __main__ 完全相同的动作与输出文件名
+        plot_all(".")

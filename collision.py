@@ -1,21 +1,38 @@
-"""Basketball collision detection and response for a rectangular backboard and rim.
+"""collision.py — 矩形篮板与圆环篮筐的 3D/2D 碰撞检测和响应
 
+统一提供 3D 主流程与 2D 演示模型所需的两套碰撞 API，并包含以下安全性改进：
+
+    * 更严的输入校验：2D 状态向量 / 边界参数要求有限 (拒绝 NaN/inf，
+      原版 NaN 会悄悄产生 w=NaN 的“穿越点”)
+    * reflect() 的“正在分离”分支返回副本而不是调用方数组的别名
+      (test_separating_velocity_is_unchanged 语义不变，只是不再共享内存)
+    * detect_all_batch(): 新增批量接触检测 (逐位复现标量 detect_all 的
+      backboard-then-rim 顺序、法向、穿透深度与接触点)
+    * detect_all 复用一次校验过的输入 (原版对两个 detector 各转一次)
+    * detect_scoring_cross_2d: 当 opening_margin 大到窗口消失
+      (xF + margin >= xB - margin) 时显式报错，而不是永不进球
+
+原有契约全部保留: Collision dataclass 字段顺序 (kind, normal, penetration,
+contact)、模块级常数名 (BACKBOARD_RESTITUTION / RIM_RESTITUTION /
+TANGENTIAL_RETENTION，可被 patch.object 覆盖)、detect_all 的稳定顺序、
+以及全部公开函数签名。
+
+Basketball collision detection and response for a rectangular backboard and rim.
 Coordinates use SI units: x points from the shooter towards the hoop, y is up,
-and z is lateral.  The backboard is a finite, zero-thickness rectangle at x=0;
-the rim is a thin horizontal circle.  Contact response uses a frictionless,
-constant-coefficient-of-restitution model.
+z is lateral.  Contact response uses a frictionless, constant-coefficient-of-
+restitution model (3D); the 2D layer uses normal 0.70 + tangential 0.85 with
+plane-crossing triggers (与 basketball_shot_2d.py 同源)。
 
 同一文件里有两套碰撞 API（两套恢复系数不同，不可混用）：
 
-  3D 主流程（上半部分，与 physics.py 的 3D 常数配套）：
-      矩形篮板 / 圆环篮筐 与球的嵌入检测（含边缘与角落），
-      单一法向恢复系数 e = 0.70，可选切向保留比例 TANGENTIAL_RETENTION（默认 1.0，
-      即无摩擦），位置校正与多接触有限轮迭代。
+  3D 主流程（上半部分）：矩形篮板 / 圆环篮筐与球的嵌入检测（含边缘与
+  角落），单一法向恢复系数 e = 0.70，可选切向保留比例，位置校正与多接触
+  有限轮迭代。
 
-  2D 模拟器（下半部分，*_2D 后缀，与根目录 basketball_shot_2d.py 同源）：
-      把篮板看成一条竖直面（只在球心“本步实际穿越平面”且接触高度落在板面窗口内
-      才触发反弹），把筐口看成前后两个刚性圆点，法向恢复 0.70 + 切向恢复 0.85，
-      进球用“穿面 + 筐口内沿两侧各留 12 mm 余量”判据。
+  2D 模拟器（下半部分，*_2D 后缀）：把篮板看成一条竖直面（只在球心“本步
+  实际穿越平面”且接触高度落在板面窗口内才触发反弹），把筐口看成前后两个
+  刚性圆点，法向 0.70 + 切向 0.85，进球用“穿面 + 筐口内沿两侧各留 12 mm
+  余量”判据。
 
 两套几何常数不同（3D 筐半径 0.225 m，2D 用 0.2287 m），引用结果时必须注明是哪套。
 """
@@ -44,7 +61,7 @@ except ImportError:  # 允许单独作为脚本运行 / 无物理模块时也能
     RESTITUTION_TANGENTIAL_2D = 0.85
 
 
-# Geometry (metres)
+# Geometry (metres) — 与 collision.py 完全一致
 RIM_HEIGHT = 3.05
 RIM_DIAMETER = 0.45
 RIM_RADIUS = RIM_DIAMETER / 2.0
@@ -63,6 +80,10 @@ RESTITUTION = BACKBOARD_RESTITUTION
 # Fraction of tangential velocity retained in the simplified friction model.
 # 1.0 means frictionless contact; 0.0 removes tangential velocity at impact.
 TANGENTIAL_RETENTION = 1.0
+
+# 预计算的筐心水平分量 (热路径少做几次索引; 数值与原版逐位一致)
+_RIM_C0 = float(RIM_CENTER[0])
+_RIM_C2 = float(RIM_CENTER[2])
 
 
 @dataclass
@@ -91,25 +112,36 @@ def _positive_scalar(value, name):
     return value
 
 
-def detect_backboard(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
-    """Detect a sphere touching the finite rectangular backboard.
+def _finite_scalar(value, name):
+    """Validate a finite scalar parameter (任何符号)."""
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError(f"{name} must be finite, got {value!r}")
+    return value
 
-    The nearest point on the rectangle is used, so edge and corner contacts are
-    included (unlike an infinite-plane test clipped by the ball-centre bounds).
-    """
-    center = _vector3(pos, "pos")
-    ball_radius = _positive_scalar(ball_radius, "ball_radius")
-    contact = np.array([
-        BACKBOARD_X,
-        np.clip(center[1], BACKBOARD_BOTTOM, BACKBOARD_TOP),
-        np.clip(center[2], -BACKBOARD_HALF_WIDTH, BACKBOARD_HALF_WIDTH),
-    ])
+
+def _state4(value, name):
+    """校验 4 维状态 [x, y, vx, vy]: 有限、shape (4,)。"""
+    arr = np.asarray(value, dtype=float)
+    if arr.shape != (4,) or not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} must be a finite 4-vector [x, y, vx, vy]")
+    return arr
+
+
+# ---------------------------------------------------------------------------
+# 已校验的标量核心 (供 detect_* 与 detect_all_batch 复用，保证逐位一致)
+# ---------------------------------------------------------------------------
+def _detect_backboard_valid(center, ball_radius) -> Collision | None:
+    """detect_backboard 的“输入已校验”版本 (center: 有限 (3,) float64)。"""
+    contact = np.empty(3, dtype=float)
+    contact[0] = BACKBOARD_X
+    contact[1] = np.clip(center[1], BACKBOARD_BOTTOM, BACKBOARD_TOP)
+    contact[2] = np.clip(center[2], -BACKBOARD_HALF_WIDTH, BACKBOARD_HALF_WIDTH)
     delta = center - contact
     distance = float(np.linalg.norm(delta))
     penetration = ball_radius - distance
     if penetration < 0.0:
         return None
-
     if distance > 1e-12:
         normal = delta / distance
     else:
@@ -119,31 +151,25 @@ def detect_backboard(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
     return Collision("backboard", normal, penetration, contact)
 
 
-def detect_rim(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
-    """Detect sphere contact with the thin horizontal circular rim."""
-    center = _vector3(pos, "pos")
-    ball_radius = _positive_scalar(ball_radius, "ball_radius")
-    horizontal = center[[0, 2]] - RIM_CENTER[[0, 2]]
+def _detect_rim_valid(center, ball_radius) -> Collision | None:
+    """detect_rim 的“输入已校验”版本。"""
+    horizontal = center[[0, 2]] - np.array([_RIM_C0, _RIM_C2])
     radius = float(np.linalg.norm(horizontal))
-
     # At the symmetry axis every rim point is equally close; select one point.
     # This also avoids a zero-divide and gives the correct centre-to-ring distance.
     if radius > 1e-12:
         radial_direction = horizontal / radius
     else:
         radial_direction = np.array([1.0, 0.0])
-
-    contact = np.array([
-        RIM_CENTER[0] + RIM_RADIUS * radial_direction[0],
-        RIM_HEIGHT,
-        RIM_CENTER[2] + RIM_RADIUS * radial_direction[1],
-    ])
+    contact = np.empty(3, dtype=float)
+    contact[0] = _RIM_C0 + RIM_RADIUS * radial_direction[0]
+    contact[1] = RIM_HEIGHT
+    contact[2] = _RIM_C2 + RIM_RADIUS * radial_direction[1]
     delta = center - contact
     distance = float(np.linalg.norm(delta))
     penetration = ball_radius - distance
     if penetration < 0.0:
         return None
-
     # For the project's dimensions distance cannot be zero, but keep the normal
     # well-defined if dimensions are changed in a future version.
     if distance > 1e-12:
@@ -153,17 +179,30 @@ def detect_rim(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
     return Collision("rim", normal, penetration, contact)
 
 
-def detect_any(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
-    """Return a backboard contact first, otherwise a rim contact."""
-    collisions = detect_all(pos, ball_radius)
-    return collisions[0] if collisions else None
+def detect_backboard(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
+    """Detect a sphere touching the finite rectangular backboard.
+
+    The nearest point on the rectangle is used, so edge and corner contacts are
+    included (unlike an infinite-plane test clipped by the ball-centre bounds).
+    """
+    return _detect_backboard_valid(_vector3(pos, "pos"),
+                                   _positive_scalar(ball_radius, "ball_radius"))
+
+
+def detect_rim(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
+    """Detect sphere contact with the thin horizontal circular rim."""
+    return _detect_rim_valid(_vector3(pos, "pos"),
+                             _positive_scalar(ball_radius, "ball_radius"))
 
 
 def detect_all(pos, ball_radius: float = BALL_RADIUS) -> list[Collision]:
     """Return every overlapping contact, in stable backboard-then-rim order."""
+    center = _vector3(pos, "pos")
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
+    # 复用同一次校验过的输入 (原版会对两个 detector 各转一次; 结果逐位一致)
     collisions = []
-    backboard = detect_backboard(pos, ball_radius)
-    rim = detect_rim(pos, ball_radius)
+    backboard = _detect_backboard_valid(center, ball_radius)
+    rim = _detect_rim_valid(center, ball_radius)
     if backboard is not None:
         collisions.append(backboard)
     if rim is not None:
@@ -171,7 +210,37 @@ def detect_all(pos, ball_radius: float = BALL_RADIUS) -> list[Collision]:
     return collisions
 
 
-def detect_backboard_batch(pos, ball_radius: float = BALL_RADIUS):
+def detect_any(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
+    """Return a backboard contact first, otherwise a rim contact."""
+    collisions = detect_all(pos, ball_radius)
+    return collisions[0] if collisions else None
+
+
+def detect_all_batch(pos, ball_radius: float = BALL_RADIUS) -> list[list[Collision]]:
+    """
+    新增: 批量版 detect_all —— 对 N 个球心一次性给出各自的接触列表。
+
+    每个内层列表与标量 detect_all 完全一致 (同样的 backboard-then-rim 顺序、
+    法向、穿透深度与接触点)。入口先一次性校验整个数组。
+    """
+    centers = np.asarray(pos, dtype=float)
+    if centers.ndim != 2 or centers.shape[1] != 3 or not np.all(np.isfinite(centers)):
+        raise ValueError("pos must be a finite array with shape (N, 3)")
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
+    out = []
+    for center in centers:
+        row = []
+        backboard = _detect_backboard_valid(center, ball_radius)
+        rim = _detect_rim_valid(center, ball_radius)
+        if backboard is not None:
+            row.append(backboard)
+        if rim is not None:
+            row.append(rim)
+        out.append(row)
+    return out
+
+
+def detect_backboard_batch(pos, ball_radius: float = BALL_RADIUS) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Vectorised rectangular-board test; returns hit, normal, penetration."""
     ball_radius = _positive_scalar(ball_radius, "ball_radius")
     centers = np.asarray(pos, dtype=float)
@@ -196,14 +265,14 @@ def detect_backboard_batch(pos, ball_radius: float = BALL_RADIUS):
     return hit, normals, penetration
 
 
-def detect_rim_batch(pos, ball_radius: float = BALL_RADIUS):
+def detect_rim_batch(pos, ball_radius: float = BALL_RADIUS) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Vectorised rim test; returns hit, normal, penetration."""
     ball_radius = _positive_scalar(ball_radius, "ball_radius")
     centers = np.asarray(pos, dtype=float)
     if centers.ndim != 2 or centers.shape[1] != 3 or not np.all(np.isfinite(centers)):
         raise ValueError("pos must be a finite array with shape (N, 3)")
 
-    horizontal = centers[:, [0, 2]] - RIM_CENTER[[0, 2]]
+    horizontal = centers[:, [0, 2]] - np.array([_RIM_C0, _RIM_C2])
     radius = np.linalg.norm(horizontal, axis=1)
     direction = np.zeros_like(horizontal)
     off_axis = radius > 1e-12
@@ -211,9 +280,9 @@ def detect_rim_batch(pos, ball_radius: float = BALL_RADIUS):
     direction[~off_axis, 0] = 1.0
 
     contacts = np.column_stack((
-        RIM_CENTER[0] + RIM_RADIUS * direction[:, 0],
+        _RIM_C0 + RIM_RADIUS * direction[:, 0],
         np.full(len(centers), RIM_HEIGHT),
-        RIM_CENTER[2] + RIM_RADIUS * direction[:, 1],
+        _RIM_C2 + RIM_RADIUS * direction[:, 1],
     ))
     delta = centers - contacts
     distance = np.linalg.norm(delta, axis=1)
@@ -233,8 +302,9 @@ def reflect(vel, normal, e: float = RESTITUTION,
 
     With outward unit normal n and incoming normal speed v_n = v·n < 0,
     v_after = -e*v_n*n + tangential_retention*v_t, where v_t is the incoming
-    tangential velocity. Separating contacts are unchanged. The retention
-    parameter is a simplified friction control, not a Coulomb friction model.
+    tangential velocity. Separating contacts are unchanged — 改进版返回输入
+    的副本而非别名，调用方不会再被就地改写。The retention parameter is a
+    simplified friction control, not a Coulomb friction model.
     """
     velocity = _vector3(vel, "vel")
     normal = _vector3(normal, "normal")
@@ -251,14 +321,18 @@ def reflect(vel, normal, e: float = RESTITUTION,
         tangent_velocity = velocity - normal_speed * normal
         velocity = (-e * normal_speed * normal
                     + tangential_retention * tangent_velocity)
+    else:
+        velocity = velocity.copy()
     return velocity
 
 
 def resolve(pos, vel, collision: Collision, correct_position: bool = True,
             restitution: float | None = None,
-            tangential_retention: float = TANGENTIAL_RETENTION):
+            tangential_retention: float = TANGENTIAL_RETENTION) -> tuple[np.ndarray, np.ndarray]:
     """Apply one contact response and optionally remove geometric overlap."""
     position = _vector3(pos, "pos").copy()
+    if not isinstance(collision, Collision):
+        raise ValueError("collision must be a Collision instance")
     if restitution is None:
         restitution = restitution_for(collision.kind)
     velocity = reflect(vel, collision.normal, restitution, tangential_retention)
@@ -280,7 +354,7 @@ def resolve_contacts(pos, vel, collisions=None, correct_position: bool = True,
                      tangential_retention: float = TANGENTIAL_RETENTION,
                      max_position_iterations: int = 4,
                      max_velocity_iterations: int = 4,
-                     ball_radius: float = BALL_RADIUS):
+                     ball_radius: float = BALL_RADIUS) -> tuple[np.ndarray, np.ndarray]:
     """Resolve all contacts found at a position using bounded sequential passes.
 
     Each incoming contact applies its own restitution in stable order. A few
@@ -373,15 +447,18 @@ MAX_BOARD_BOUNCES_2D = 4
 
 def hoop_geometry_2d(center_x: float, *, rim_radius: float = RIM_RADIUS_2D,
                      ball_radius: float = BALL_RADIUS_2D,
-                     board_offset: float = BOARD_OFFSET_2D):
+                     board_offset: float = BOARD_OFFSET_2D) -> tuple[float, float, float]:
     """
     由筐心水平坐标算 2D 场景的三点：前缘 xF、后缘 xB、以及触发板面反弹的
     xbc（篮板接触参考面，位于后缘 + 板后间隙 - 球半径）。
 
-    对应单文件的 `hoop_geoms`：xF = c - R, xB = c + R, xbc = xB + BOARD_OFF - R。
-    返回 (xF, xB, xbc)。
+    对应单文件的 hoop_geoms：xF = c - R, xB = c + R, xbc = xB + BOARD_OFF - R。
+    改进版: 校验各参数有限、半径为正。返回 (xF, xB, xbc)。
     """
-    c = float(center_x)
+    c = _finite_scalar(center_x, "center_x")
+    rim_radius = _positive_scalar(rim_radius, "rim_radius")
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
+    board_offset = _finite_scalar(board_offset, "board_offset")
     xF = c - rim_radius
     xB = c + rim_radius
     return xF, xB, xB + board_offset - ball_radius
@@ -389,17 +466,20 @@ def hoop_geometry_2d(center_x: float, *, rim_radius: float = RIM_RADIUS_2D,
 
 def reflect_2d(vx: float, vy: float, nx: float, ny: float,
                e_n: float = RESTITUTION_NORMAL_2D,
-               e_t: float = RESTITUTION_TANGENTIAL_2D):
+               e_t: float = RESTITUTION_TANGENTIAL_2D) -> tuple[float, float]:
     """
     2D 接触反弹：把速度拆成法向 / 切向，法向乘 -e_n、切向乘 e_t。
 
         v_n = v · n,  v_t = v - v_n n
         v'  = -e_n * v_n * n + e_t * v_t     (仅当 v_n < 0, 即正在接近)
 
-    已在离开或纯切向擦过时原速度不变。返回 (vx', vy')。
+    已在离开或纯切向擦过时原速度不变 (返回副本语义同 3D reflect)。
+    改进版: 拒绝非有限输入。返回 (vx', vy')。
     """
     vx, vy = float(vx), float(vy)
     nx, ny = float(nx), float(ny)
+    if not all(map(math.isfinite, (vx, vy, nx, ny))):
+        raise ValueError(f"vx/vy/nx/ny must be finite, got {vx}, {vy}, {nx}, {ny}")
     if not np.isclose(math.hypot(nx, ny), 1.0, atol=1e-8):
         raise ValueError("normal must be a unit 2D vector")
     if not 0.0 <= e_n <= 1.0:
@@ -414,24 +494,26 @@ def reflect_2d(vx: float, vy: float, nx: float, ny: float,
 
 
 def cross_board_plane_2d(prev, nxt, board_x: float,
-                         height_window=BOARD_CONTACT_WINDOW_2D):
+                         height_window=BOARD_CONTACT_WINDOW_2D) -> dict | None:
     """
     检查球心在 [prev, nxt] 这一步内是否实际穿过了板面 x = board_x，
     且接触点高度在板面窗口内。
 
     prev, nxt 为 4 维状态 [x, y, vx, vy]。用步内线性插值求穿越点的位置与速度。
     未穿越（同号）或穿越但高度不在窗口内时返回 None。
+    改进版: prev/nxt/board_x/height_window 要求有限 (原版 NaN 会产生 w=NaN
+    的伪穿越点而不报错)。
     """
-    prev = np.asarray(prev, dtype=float)
-    nxt = np.asarray(nxt, dtype=float)
-    if prev.shape != (4,) or nxt.shape != (4,):
-        raise ValueError("prev/nxt must be finite 4-vectors [x, y, vx, vy]")
-    board_x = float(board_x)
+    prev = _state4(prev, "prev")
+    nxt = _state4(nxt, "nxt")
+    board_x = _finite_scalar(board_x, "board_x")
     if (prev[0] - board_x) * (nxt[0] - board_x) >= 0.0:
         return None
     w = (board_x - prev[0]) / (nxt[0] - prev[0])
     yc = prev[1] + w * (nxt[1] - prev[1])
-    lo, hi = height_window
+    lo, hi = float(height_window[0]), float(height_window[1])
+    if not (math.isfinite(lo) and math.isfinite(hi)) or lo > hi:
+        raise ValueError(f"height_window must be finite with lo <= hi, got {height_window!r}")
     if not (lo <= yc <= hi):
         return None
     vxc = prev[2] + w * (nxt[2] - prev[2])
@@ -442,7 +524,7 @@ def cross_board_plane_2d(prev, nxt, board_x: float,
 def bounce_off_board_2d(prev, nxt, board_x: float, t_contact: float, *,
                         height_window=BOARD_CONTACT_WINDOW_2D,
                         e_n: float = RESTITUTION_NORMAL_2D,
-                        e_t: float = RESTITUTION_TANGENTIAL_2D):
+                        e_t: float = RESTITUTION_TANGENTIAL_2D) -> tuple[np.ndarray, dict] | None:
     """
     板面反弹：若这一步确实穿越了板面且接触高度在窗口内，把状态放到穿越点
     并反弹。返回 (new_state, contact_dict) 或 None。
@@ -457,21 +539,23 @@ def bounce_off_board_2d(prev, nxt, board_x: float, t_contact: float, *,
     nx = -1.0 if info["vx"] > 0.0 else 1.0
     vxr, vyr = reflect_2d(info["vx"], info["vy"], nx, 0.0, e_n, e_t)
     state = np.array([info["x"], info["y"], vxr, vyr], dtype=float)
-    contact = dict(kind="board", t=float(t_contact), x=float(info["x"]),
-                   y=float(info["y"]), tin=(info["vx"], info["vy"]),
-                   tout=(vxr, vyr), face="front" if info["vx"] > 0 else "back")
+    contact = dict(kind="board", t=_finite_scalar(t_contact, "t_contact"),
+                   x=float(info["x"]), y=float(info["y"]),
+                   tin=(info["vx"], info["vy"]), tout=(vxr, vyr),
+                   face="front" if info["vx"] > 0 else "back")
     return state, contact
 
 
 def rim_edge_gap_2d(state, edge_x: float, *, rim_y: float = RIM_HEIGHT_2D,
-                    ball_radius: float = BALL_RADIUS_2D):
+                    ball_radius: float = BALL_RADIUS_2D) -> tuple[float, float, tuple[float, float]]:
     """
     球心到 2D 筐沿端点（当作刚性圆点）的距离与重叠量：
     返回 (distance, penetration, (nx, ny))；无接触时 penetration < 0。
     """
-    state = np.asarray(state, dtype=float)
-    dx = float(state[0]) - float(edge_x)
-    dy = float(state[1]) - float(rim_y)
+    state = _state4(state, "state")
+    dx = float(state[0]) - _finite_scalar(edge_x, "edge_x")
+    dy = float(state[1]) - _finite_scalar(rim_y, "rim_y")
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
     dd = math.hypot(dx, dy)
     if dd <= 1e-9:
         return dd, float(ball_radius), (1.0, 0.0)
@@ -480,13 +564,14 @@ def rim_edge_gap_2d(state, edge_x: float, *, rim_y: float = RIM_HEIGHT_2D,
 
 def detect_rim_edges_2d(state, xF: float, xB: float, *,
                         rim_y: float = RIM_HEIGHT_2D,
-                        ball_radius: float = BALL_RADIUS_2D):
+                        ball_radius: float = BALL_RADIUS_2D) -> list[tuple[float, float, float, tuple[float, float]]]:
     """
     对前后两个筐沿端点做接触检测，返回接触列表
     [(edge_x, distance, penetration, (nx, ny))]（按 xF, xB 顺序，只包含重叠的）。
     """
+    state = _state4(state, "state")
     out = []
-    for xe in (float(xF), float(xB)):
+    for xe in (_finite_scalar(xF, "xF"), _finite_scalar(xB, "xB")):
         dd, pen, normal = rim_edge_gap_2d(state, xe, rim_y=rim_y,
                                           ball_radius=ball_radius)
         if pen > 0.0 and dd > 1e-9:
@@ -498,7 +583,7 @@ def bounce_off_rim_edge_2d(state, edge_x: float, t_contact: float, *,
                            rim_y: float = RIM_HEIGHT_2D,
                            ball_radius: float = BALL_RADIUS_2D,
                            e_n: float = RESTITUTION_NORMAL_2D,
-                           e_t: float = RESTITUTION_TANGENTIAL_2D):
+                           e_t: float = RESTITUTION_TANGENTIAL_2D) -> tuple[np.ndarray, dict] | None:
     """
     单个筐沿端点的反弹：法向乘 -e_n、切向乘 e_t，并把球心沿法向推到接触面外
     （去穿透）。只在法向速度朝内（v_n < 0）时触发，避免球离开筐沿时二次触发。
@@ -506,7 +591,7 @@ def bounce_off_rim_edge_2d(state, edge_x: float, t_contact: float, *,
     返回 (new_state, contact_dict) 或 None（未接触 / 正在离开）。
     contact_dict: kind/t/x/y/tin/tout/edge（'back' = 靠近篮板一侧，'front' = 远侧）
     """
-    state = np.asarray(state, dtype=float).copy()
+    state = _state4(state, "state")
     dd, pen, (nx, ny) = rim_edge_gap_2d(state, edge_x, rim_y=rim_y,
                                         ball_radius=ball_radius)
     if dd <= 1e-9 or pen <= 0.0:
@@ -518,27 +603,38 @@ def bounce_off_rim_edge_2d(state, edge_x: float, t_contact: float, *,
     vxr, vyr = reflect_2d(state[2], state[3], nx, ny, e_n, e_t)
     new_state = np.array([state[0] + pen * nx, state[1] + pen * ny, vxr, vyr],
                          dtype=float)
-    contact = dict(kind="rim", t=float(t_contact), x=float(edge_x),
-                   y=float(rim_y), tin=tin, tout=(vxr, vyr),
+    contact = dict(kind="rim", t=_finite_scalar(t_contact, "t_contact"),
+                   x=float(edge_x), y=float(rim_y), tin=tin, tout=(vxr, vyr),
                    edge="back" if (float(state[0]) - float(edge_x)) > 0 else "front")
     return new_state, contact
 
 
 def detect_scoring_cross_2d(prev, nxt, xF: float, xB: float, *,
                             rim_y: float = RIM_HEIGHT_2D,
-                            opening_margin: float = OPENING_MARGIN_2D):
+                            opening_margin: float = OPENING_MARGIN_2D) -> dict | None:
     """
     进球判据（与单文件同构）：球心从上往下穿过 y = rim_y、vy < 0，
     且本步末的 x 落在 [xF + margin, xB - margin]（筐口内沿两侧各留余量）。
 
     返回 dict(entry_deg = 入筐角 [deg], x = 本步末水平位置)，否则 None。
+    改进版: margin 大到窗口消失 (xF + margin >= xB - margin) 时显式报错，
+    而不是静默永不进球。
     """
-    prev = np.asarray(prev, dtype=float)
-    nxt = np.asarray(nxt, dtype=float)
+    prev = _state4(prev, "prev")
+    nxt = _state4(nxt, "nxt")
+    xF, xB = _finite_scalar(xF, "xF"), _finite_scalar(xB, "xB")
+    rim_y = _finite_scalar(rim_y, "rim_y")
+    margin = float(opening_margin)
+    if not math.isfinite(margin) or margin < 0.0:
+        raise ValueError(f"opening_margin must be finite and >= 0, got {opening_margin!r}")
     if not (prev[1] > rim_y and nxt[1] <= rim_y and nxt[3] < 0.0):
         return None
-    lo = float(xF) + float(opening_margin)
-    hi = float(xB) - float(opening_margin)
+    lo = xF + margin
+    hi = xB - margin
+    if lo >= hi:
+        raise ValueError(
+            f"opening_margin {margin!r} closes the hoop window "
+            f"(xF={xF} m, xB={xB} m)")
     if not (lo < nxt[0] < hi):
         return None
     return dict(entry_deg=math.degrees(math.atan2(abs(nxt[3]), abs(nxt[2]))),
@@ -550,6 +646,7 @@ def classify_outcome_2d(board_contact: bool, edge_contact: bool):
     根据碰撞历史给出进球子类：从未碰板碰筐 -> SWISH；只碰板 -> BANK-IN；
     碰过筐（可能也碰板）-> RATTLE-IN。
     """
+    board_contact, edge_contact = bool(board_contact), bool(edge_contact)
     if board_contact and not edge_contact:
         return "BANK-IN"
     if edge_contact:
@@ -661,3 +758,4 @@ def run_tests_2d():
 if __name__ == "__main__":
     run_tests()
     run_tests_2d()
+    print("\n[检查] Scalar and batched collision test suites completed.")

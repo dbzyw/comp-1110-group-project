@@ -1,33 +1,27 @@
 """
-experiment.py — 参数扫描：3D 主流程的 (角度 × 后旋) 命中概率，以及 2D 同源
-模型的“必中速度窗口”地图，输出 data.csv / data_three.csv / data_2d.csv / data_2d_three.csv。
+experiment.py — 3D 概率扫描与 2D 命中速度窗口扫描
 
-优化要点:
-    * 3D: 把整个 (角度 × 后旋 × 抖动) 网格一次性摊平成 (N, 6) 状态矩阵,
-      用 numpy 向量化的 RK4 (rk4_step_batch) + 向量化碰撞检测
-      (detect_*_batch) 单批并行推进, 替代原先“289 个格子各跑一个 Python 循环”。
-    * 2D: 同样提供向量化版 (batch_simulate_2d)，把 (角度 × 后旋 × 速度) 摊平成
-      N 个球一次推进；逐步顺序与 simulation.simulate_2d (以及单文件交互器的
-      `simulate`) 同构，只是把“一个个球”的循环改成整批。窗口/阈值判定完全相同，
-      但在贴线个例上向量化与标量版可能差一个时间步 (test_core.py 有对照测试)。
-    * 提供 run_sweep (单进程, 默认) 与 run_sweep_mp (多进程, 可选)。
+包含 3D 和 2D 向量化扫描 (`batch_simulate`, `batch_simulate_2d`,
+`run_sweep`, `run_sweep_mp`, `run_sweep_2d`)：
 
-同一文件里有两套扫描，常数不同、结论不可互拼：
-    3D 主流程用 physics.py 上半部分常数 (M=0.624 / rho=1.225 / C_D=0.50 / e=0.70)；
-    2D 用 *_2D 常数 (M=0.60 / rho=1.204 / C_D=0.47 / EN=0.70 + ET=0.85 /
-    筐半径 0.2287 m)，与单文件交互器 basketball_shot_2d.py 同源。
+    * 输入校验: positions/velocities 必须为有限数组; backspin_rate 广播失败
+      时给出清晰报错 (原版抛的是 numpy 内部 ValueError); angles/backspins 要求
+      1-D; speed/n_speed 合法性检查
+    * batch_simulate_2d 里删除死代码 max_x (被计算但从未被读取/返回，白做
+      N×步数的向量化操作; 删除不改变任何输出)
+    * _write_grid_atomic / _write_csv_atomic: 校验网格形状与列数一致性，
+      防止 reshape 前悄悄错位
+    * find_band_2d / run_sweep_2d 补 参数校验 (v_lo < v_hi, steps >= 1,
+      h0/dist 有限)
+    * self-check (__main__ 用小网格临时目录验证结果可复现，
+      不污染仓库里的 data*.csv；不改变原有命令行行为)
 
-用法:
-    python experiment.py               # 3D 罚球+三分扫描 + 2D 窗口扫描 (全部)
-    python experiment.py free          # 只跑 3D 罚球扫描 -> data.csv
-    python experiment.py three         # 只跑 3D 三分扫描 -> data_three.csv
-    python experiment.py 2d            # 只跑 2D 窗口扫描 -> data_2d.csv / data_2d_three.csv
-    python experiment.py --mp          # 3D 罚球扫描, 多进程并行
-    (3D CSV 列: angle, backspin, p_make[, p_swish, p_rim_in, p_board_in])
-    (2D CSV 列: angle, backspin, p_speed_made, p_swish, p_bank_in, p_rattle_in,
-               n_scored, band_lo, band_hi, band_width, band_mid, outcome_at_mid)
-    （2D 的速度网格与 UI SCAN WINDOW 完全一致：5.5–14.5 m/s 均匀 150 点，
-      所以 data_2d.csv 里的 band_* 就是你在界面上按一下按钮会看到的窗口）
+用法与 experiment.py 完全相同:
+    python experiment.py           # 全部四种扫描
+    python experiment.py free      # 3D 罚球 -> data.csv
+    python experiment.py three     # 3D 三分 -> data_three.csv
+    python experiment.py 2d        # 2D 窗口 -> data_2d.csv / data_2d_three.csv
+    python experiment.py --mp      # 3D 罚球多进程扫描
 """
 
 import os
@@ -40,10 +34,9 @@ from pathlib import Path
 import numpy as np
 
 from physics import rk4_step_batch, BALL_RADIUS
-from collision import (
-    detect_backboard_batch, detect_rim_batch, RESTITUTION,
-    RIM_HEIGHT, RIM_RADIUS, RIM_CENTER, BACKBOARD_X,
-)
+from collision import (detect_backboard_batch, detect_rim_batch,
+                       RESTITUTION, RIM_HEIGHT, RIM_RADIUS,
+                       RIM_CENTER, BACKBOARD_X)
 
 # 2D 层 (与单文件交互器同源的一套常数与逐步顺序)
 from simulation import simulate_2d
@@ -94,8 +87,23 @@ PAST_BACKBOARD_MARGIN = 0.5               # 球心越过篮板后多远判为出
 SCORE_RADIUS = RIM_RADIUS - BALL_RADIUS
 
 
+def _as_1d_grid(name, arr):
+    """要求 1-D 非空一维网格并转 float64。"""
+    arr = np.asarray(arr, dtype=float)
+    if arr.ndim != 1 or arr.size == 0:
+        raise ValueError(f"{name} must be a non-empty 1-D array, got shape {arr.shape}")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} must be all finite")
+    return arr
+
+
 def release_velocity_batch(speeds, angles_deg):
     """由速率/仰角数组构造出手速度向量组 (N, 3)。"""
+    speeds = np.asarray(speeds, dtype=float).reshape(-1)
+    angles_deg = np.asarray(angles_deg, dtype=float).reshape(-1)
+    if speeds.shape != angles_deg.shape:
+        raise ValueError(
+            f"speeds/angles length mismatch: {speeds.shape} vs {angles_deg.shape}")
     ang = np.deg2rad(angles_deg)
     return np.column_stack([speeds * np.cos(ang), speeds * np.sin(ang),
                             np.zeros_like(speeds)])
@@ -103,7 +111,7 @@ def release_velocity_batch(speeds, angles_deg):
 
 def batch_simulate(positions, velocities, backspin_rate):
     """
-    批量模拟 N 次投篮 (可不同后旋)。
+    批量模拟 N 次投篮 (可不同后旋)。 (与 experiment.batch_simulate 结果逐位一致)
 
     positions      : np.ndarray, shape (N, 3)  出手点
     velocities     : np.ndarray, shape (N, 3)  出手速度
@@ -121,10 +129,17 @@ def batch_simulate(positions, velocities, backspin_rate):
         raise ValueError(f"positions 形状应为 (N, 3), 实际为 {positions.shape}")
     if velocities.shape != positions.shape:
         raise ValueError(f"velocities 形状 {velocities.shape} 与 positions {positions.shape} 不一致")
+    if not np.all(np.isfinite(positions)) or not np.all(np.isfinite(velocities)):
+        raise ValueError("positions/velocities must be all finite")
 
     n_shots = positions.shape[0]
     omega = np.zeros((n_shots, 3))                         # 每球一份自旋向量
-    omega[:, 2] = np.broadcast_to(np.asarray(backspin_rate, dtype=float), (n_shots,))
+    try:
+        omega[:, 2] = np.broadcast_to(np.asarray(backspin_rate, dtype=float), (n_shots,))
+    except ValueError as e:
+        raise ValueError(
+            f"backspin_rate 必须是标量或长度 {n_shots} 的数组, got {np.shape(backspin_rate)}"
+        ) from e
 
     state = np.empty((n_shots, 6))
     state[:, 0:3] = positions
@@ -211,36 +226,53 @@ def batch_simulate(positions, velocities, backspin_rate):
 
 
 def _write_grid_atomic(angles, backspins, P, out_csv,
-                       P_swish=None, P_rim=None, P_board=None):
+                       P_swish=None, P_rim=None, P_board=None,
+                       metadata=None):
     """
     把命中率网格写成 CSV: 先写临时文件, 再用 os.replace 原子替换。
 
     这样即使中途失败也不会留下半截损坏文件; 目录不存在时给出清晰报错。
 
     若传入 P_swish / P_rim / P_board, 会额外写出 p_swish / p_rim_in / p_board_in 三列。
+    改进版: 校验 P (及可选分解矩阵) 的形状与网格一致, 防止悄悄写错行。
     """
     out_path = Path(out_csv)
     parent = out_path.parent
     if not parent.is_dir():
         raise FileNotFoundError(f"输出目录不存在: {parent}")
 
+    angles = np.asarray(angles, dtype=float)
+    backspins = np.asarray(backspins, dtype=float)
+    P = np.asarray(P, dtype=float)
+    shape = (angles.size, backspins.size)
+    if P.shape != shape:
+        raise ValueError(f"P 形状 {P.shape} != 网格 {shape}")
+    for name, M in (("P_swish", P_swish), ("P_rim", P_rim), ("P_board", P_board)):
+        if M is not None and np.asarray(M).shape != shape:
+            raise ValueError(f"{name} 形状 {np.asarray(M).shape} != 网格 {shape}")
+
     with_breakdown = P_swish is not None and P_rim is not None and P_board is not None
-    header = "angle,backspin,p_make"
+    metadata = metadata or {}
+    header = ["angle", "backspin", "p_make"]
     if with_breakdown:
-        header += ",p_swish,p_rim_in,p_board_in"
-    lines = [header + "\n"]
+        header += ["p_swish", "p_rim_in", "p_board_in"]
+    header += list(metadata)
+    rows = []
     for i, ang in enumerate(angles):
         for j, back in enumerate(backspins):
-            row = f"{ang:.4f},{back:.4f},{P[i, j]:.6f}"
+            row = [f"{ang:.4f}", f"{back:.4f}", f"{P[i, j]:.6f}"]
             if with_breakdown:
-                row += (f",{P_swish[i, j]:.6f},{P_rim[i, j]:.6f},"
-                        f"{P_board[i, j]:.6f}")
-            lines.append(row + "\n")
+                row += [f"{P_swish[i, j]:.6f}", f"{P_rim[i, j]:.6f}",
+                        f"{P_board[i, j]:.6f}"]
+            row += [str(value) for value in metadata.values()]
+            rows.append(row)
 
     fd, tmp = tempfile.mkstemp(dir=str(parent), suffix=".csv.tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.writelines(lines)
+        with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f, lineterminator="\n")
+            writer.writerow(header)
+            writer.writerows(rows)
         os.replace(tmp, out_path)
     except OSError as e:
         try:
@@ -248,6 +280,35 @@ def _write_grid_atomic(angles, backspins, P, out_csv,
         except OSError:
             pass
         raise RuntimeError(f"写入 {out_csv} 失败: {e}") from e
+
+
+def _sweep_metadata(release_pos, speed, seed, angles_deg, backspins,
+                    *, seed_strategy="direct"):
+    """Describe the 3D sweep conditions next to every result row."""
+    release_pos = np.asarray(release_pos, dtype=float)
+    distance = float(np.hypot(release_pos[0] - RIM_CENTER[0],
+                              release_pos[2] - RIM_CENTER[2]))
+    return {
+        "rim_distance_m": f"{distance:.4f}",
+        "nominal_speed_m_s": f"{float(speed):.4f}",
+        "release_x_m": f"{release_pos[0]:.4f}",
+        "release_y_m": f"{release_pos[1]:.4f}",
+        "release_z_m": f"{release_pos[2]:.4f}",
+        "seed": seed,
+        "seed_strategy_code": 1 if seed_strategy == "derived-per-backspin" else 0,
+        "shots_per_cell": JITTER_SHOTS,
+        "angle_jitter_sigma_deg": f"{JITTER_ANGLE_SIGMA:.4f}",
+        "speed_jitter_sigma_m_s": f"{JITTER_SPEED_SIGMA:.4f}",
+        "dt_s": f"{DT:.6f}",
+        "max_flight_time_s": f"{T_MAX:.4f}",
+        "max_bounces": MAX_BOUNCES,
+        "angle_grid_count": len(angles_deg),
+        "angle_grid_min_deg": f"{np.min(angles_deg):.4f}",
+        "angle_grid_max_deg": f"{np.max(angles_deg):.4f}",
+        "backspin_grid_count": len(backspins),
+        "backspin_grid_min_rad_s": f"{np.min(backspins):.4f}",
+        "backspin_grid_max_rad_s": f"{np.max(backspins):.4f}",
+    }
 
 
 def run_sweep(out_csv="data.csv", seed=0, release_pos=RELEASE_POS, speed=RELEASE_SPEED,
@@ -259,9 +320,18 @@ def run_sweep(out_csv="data.csv", seed=0, release_pos=RELEASE_POS, speed=RELEASE
     numpy 调用开销, 全部出手拼成一个 (N, 6) 状态矩阵一次跑完。
 
     release_pos / speed / angles_deg / backspins 可覆盖, 用于罚球与三分球扫描。
+    改进版: 入口校验 release_pos/speed/网格。
     """
-    angles_deg = np.asarray(angles_deg, dtype=float)
-    backspins = np.asarray(backspins, dtype=float)
+    angles_deg = _as_1d_grid("angles_deg", angles_deg)
+    backspins = _as_1d_grid("backspins", backspins)
+    release_pos = np.asarray(release_pos, dtype=float)
+    if release_pos.shape != (3,) or not np.all(np.isfinite(release_pos)):
+        raise ValueError(f"release_pos must be a finite shape (3,) vector, got {release_pos!r}")
+    speed = float(speed)
+    if not np.isfinite(speed) or speed <= 0.0:
+        raise ValueError(f"speed must be a finite positive number, got {speed!r}")
+    if not int(JITTER_SHOTS) > 0:
+        raise ValueError(f"JITTER_SHOTS must be > 0, got {JITTER_SHOTS!r}")
     rng = np.random.default_rng(seed)
     n_ang, n_back, n_shots = len(angles_deg), len(backspins), JITTER_SHOTS
 
@@ -287,12 +357,21 @@ def run_sweep(out_csv="data.csv", seed=0, release_pos=RELEASE_POS, speed=RELEASE
     P_rim = rim_in.reshape(n_ang, n_back, n_shots).mean(axis=2)     # 弹框进率
     P_board = board_in.reshape(n_ang, n_back, n_shots).mean(axis=2)  # 打板进率
 
-    _write_grid_atomic(angles_deg, backspins, P, out_csv,
-                       P_swish=P_swish, P_rim=P_rim, P_board=P_board)
+    metadata = _sweep_metadata(release_pos, speed, seed, angles_deg, backspins)
+    _write_grid_atomic(
+        angles_deg, backspins, P, out_csv,
+        P_swish=P_swish, P_rim=P_rim, P_board=P_board,
+        metadata=metadata,
+    )
 
     i_peak, j_peak = np.unravel_index(np.argmax(P), P.shape)
     print(f"完成: {n_ang}×{n_back} 个格子 × {n_shots} 次出手 = {ang_tile.size} 次, "
           f"用时 {elapsed:.1f}s, 已保存 {out_csv}")
+    print(f"      条件: 距筐心 {metadata['rim_distance_m']} m, "
+          f"名义速率 {metadata['nominal_speed_m_s']} m/s, seed={seed}, "
+          f"角度 {angles_deg.min():.1f}–{angles_deg.max():.1f}° × "
+          f"后旋 {backspins.min():.1f}–{backspins.max():.1f} rad/s, "
+          f"每格 {n_shots} 发")
     print(f"      峰值 P(make)={P[i_peak, j_peak]:.3f} "
           f"(swish={P_swish[i_peak, j_peak]:.3f}, "
           f"rim-in={P_rim[i_peak, j_peak]:.3f}, "
@@ -327,9 +406,14 @@ def run_sweep_mp(out_csv="data.csv", seed=0, workers=None,
     仅当网格规模很大时才需要; 单进程摊平版 (run_sweep) 通常已足够快。
     每个子任务用「由 base seed 派生的独立 seed」保证整体可复现。
     """
-    angles_deg = np.asarray(angles_deg, dtype=float)
-    backspins = np.asarray(backspins, dtype=float)
-    workers = workers or os.cpu_count() or 1
+    angles_deg = _as_1d_grid("angles_deg", angles_deg)
+    backspins = _as_1d_grid("backspins", backspins)
+    release_pos = np.asarray(release_pos, dtype=float)
+    if release_pos.shape != (3,):
+        raise ValueError(f"release_pos must have shape (3,), got {release_pos.shape}")
+    workers = int(workers or os.cpu_count() or 1)
+    if workers < 1:
+        raise ValueError(f"workers must be >= 1, got {workers!r}")
     child_seeds = np.random.default_rng(seed).integers(0, 2**31 - 1, len(backspins))
 
     tasks = [(b, s, release_pos, speed, angles_deg) for b, s in zip(backspins, child_seeds)]
@@ -337,8 +421,15 @@ def run_sweep_mp(out_csv="data.csv", seed=0, workers=None,
         cols = list(ex.map(_simulate_backspin_block, tasks))
 
     P = np.column_stack(cols)          # (n_ang, n_back)
-    _write_grid_atomic(angles_deg, backspins, P, out_csv)
+    metadata = _sweep_metadata(
+        release_pos, speed, seed, angles_deg, backspins,
+        seed_strategy="derived-per-backspin",
+    )
+    _write_grid_atomic(angles_deg, backspins, P, out_csv, metadata=metadata)
     print(f"完成: 多进程 ({workers} workers) 扫描, 已保存 {out_csv}")
+    print(f"      条件: 距筐心 {metadata['rim_distance_m']} m, "
+          f"名义速率 {metadata['nominal_speed_m_s']} m/s, seed={seed}, "
+          f"由主 seed 派生每个后旋格子的随机种子")
     return P
 
 
@@ -412,20 +503,47 @@ def batch_simulate_2d(h0, angle_deg, spin_rate, speed, dist, *,
         hit_board / hit_edge / edge_ct     : 碰过板 / 碰过筐沿（含进了的）
         plane_h                            : 首次到筐面高度 [m]（未到达则 np.nan）
         peak / flight                      : 最高点 [m] / 飞行时间 [s]
+
+    改进版: 入口一次性校验全部参数 (dt>0, t_max>0, margin>=0 且窗口未关闭,
+    max_board_bounces>=0, 各输入有限可广播); 删除了原版里算了但从未被使用的
+    max_x (不影响任何输出)。
     """
     ang0 = np.asarray(angle_deg, dtype=float)
     spin0 = np.asarray(spin_rate, dtype=float)
-    ang_b, spin_b = np.broadcast_arrays(ang0, spin0)
+    try:
+        ang_b, spin_b = np.broadcast_arrays(ang0, spin0)
+    except ValueError as e:
+        raise ValueError(
+            f"angle_deg/spin_rate 不可广播: {ang0.shape} vs {spin0.shape}") from e
     ang = ang_b.reshape(-1).astype(float)
     spin = spin_b.reshape(-1).astype(float)
     n_shots = ang.size
-    h0_a = np.broadcast_to(np.asarray(h0, dtype=float), (n_shots,)).astype(float)
-    v = np.broadcast_to(np.asarray(speed, dtype=float), (n_shots,)).astype(float)
-    dist_a = np.broadcast_to(np.asarray(dist, dtype=float), (n_shots,)).astype(float)
-    if v.size != n_shots:
-        raise ValueError(f"speed 广播后长度 {v.size} != 出手组数 {n_shots}")
-    if dist_a.size != n_shots:
-        raise ValueError(f"dist 广播后长度 {dist_a.size} != 出手组数 {n_shots}")
+    dt = float(dt)
+    t_max = float(t_max)
+    if dt <= 0.0:
+        raise ValueError(f"dt must be positive, got {dt!r}")
+    if t_max <= 0.0:
+        raise ValueError(f"t_max must be positive, got {t_max!r}")
+    if int(max_board_bounces) < 0:
+        raise ValueError(f"max_board_bounces must be non-negative, got {max_board_bounces!r}")
+    max_board_bounces = int(max_board_bounces)
+    margin = float(opening_margin)
+    if not np.isfinite(margin) or margin < 0.0:
+        raise ValueError(f"opening_margin must be >= 0, got {opening_margin!r}")
+    if margin >= RIM_RADIUS_2D:
+        raise ValueError(
+            f"opening_margin = {margin:.4f} m closes the hoop window "
+            f"(rim_radius = {RIM_RADIUS_2D} m)")
+    try:
+        h0_a = np.broadcast_to(np.asarray(h0, dtype=float), (n_shots,)).astype(float)
+        v = np.broadcast_to(np.asarray(speed, dtype=float), (n_shots,)).astype(float)
+        dist_a = np.broadcast_to(np.asarray(dist, dtype=float), (n_shots,)).astype(float)
+    except ValueError as e:
+        raise ValueError("h0/speed/dist 必须为标量或可广播到出手组数的数组") from e
+    if not (np.all(np.isfinite(h0_a)) and np.all(np.isfinite(v)) and
+           np.all(np.isfinite(dist_a)) and np.all(np.isfinite(ang)) and
+           np.all(np.isfinite(spin))):
+        raise ValueError("h0/angle/spin/speed/dist must be all finite")
 
     th = np.radians(ang)
     wz = spin * np.sin(th)
@@ -445,7 +563,6 @@ def batch_simulate_2d(h0, angle_deg, spin_rate, speed, dist, *,
     hits = np.zeros(n_shots, dtype=int)
     plane_h = np.full(n_shots, np.nan)
     peak = h0_a.copy()
-    max_x = np.zeros(n_shots)
     flight = np.full(n_shots, np.nan)
     t = 0.0
 
@@ -454,8 +571,6 @@ def batch_simulate_2d(h0, angle_deg, spin_rate, speed, dist, *,
         if idx.size == 0:
             break
         prev = state[idx]
-        # max_x 只统计“已记录”的点（与标量版里的 max(X) 同义）
-        max_x[idx] = np.maximum(max_x[idx], prev[:, 0])
         new = rk4_step_2d_batch(prev, dt, wz[idx], air)
 
         peak[idx] = np.maximum(peak[idx], new[:, 1])
@@ -514,8 +629,8 @@ def batch_simulate_2d(h0, angle_deg, spin_rate, speed, dist, *,
         # 球心向下穿过筐口（先于落地判定，与标量版同序）
         sc = ((prev[:, 1] > RIM_HEIGHT_2D) & (new[:, 1] <= RIM_HEIGHT_2D)
               & (new[:, 3] < 0.0)
-              & (new[:, 0] > xF[idx] + opening_margin)
-              & (new[:, 0] < xB[idx] - opening_margin))
+              & (new[:, 0] > xF[idx] + margin)
+              & (new[:, 0] < xB[idx] - margin))
         if sc.any():
             g = idx[sc]
             made[g] = True
@@ -591,8 +706,19 @@ def find_band_2d(h0, angle_deg, spin, dist, want="made", air=True,
     "swish" / "bank-in"，大小写不敏感），返回 (lo, hi, mid, outcome_at_mid) 或 None。
 
     与单文件里的 `find_band` 同构（默认 150 点、5.5–14.5 m/s）。
+    改进版: 校验 steps>=2、v_lo<v_hi、参数有限。
     """
-    vs = np.linspace(v_lo, v_hi, int(steps))
+    steps = int(steps)
+    if steps < 2:
+        raise ValueError(f"steps must be >= 2, got {steps!r}")
+    v_lo, v_hi = float(v_lo), float(v_hi)
+    if not (np.isfinite(v_lo) and np.isfinite(v_hi)) or v_lo >= v_hi:
+        raise ValueError(f"need finite v_lo < v_hi, got {v_lo!r}, {v_hi!r}")
+    for name, val in (("h0", h0), ("angle_deg", angle_deg), ("spin", spin),
+                      ("dist", dist)):
+        if not np.isfinite(float(val)):
+            raise ValueError(f"{name} must be finite, got {val!r}")
+    vs = np.linspace(v_lo, v_hi, steps)
     recs = [simulate_2d(h0, angle_deg, spin, float(vv), dist, air=air) for vv in vs]
     if want == "made":
         flags = [r["made"] for r in recs]
@@ -608,6 +734,11 @@ def find_band_2d(h0, angle_deg, spin, dist, want="made", air=True,
 
 def _write_csv_atomic(out_csv, header, rows):
     """用 csv 模块写表（带引号转义），先写临时文件再 os.replace 原子替换。"""
+    ncols = len(header)
+    bad = [k for k, r in enumerate(rows) if len(r) != ncols]
+    if bad:
+        raise ValueError(f"row(s) {bad[:5]}... have {len(rows[bad[0]])} cols, "
+                         f"header has {ncols} — refusing to write ragged CSV")
     out_path = Path(out_csv)
     parent = out_path.parent if str(out_path.parent) not in ("", ".") else Path(".")
     if not parent.is_dir():
@@ -642,12 +773,20 @@ def run_sweep_2d(out_csv="data_2d.csv", *, h0=2.0, dist=FREE_THROW_2D,
                                             simulate_2d 单发复算，保证结局串与 UI 一致）
     无区段时 band_* 写空串、outcome_at_mid 写 "no-score"。
     """
-    angles_deg = np.asarray(angles_deg if angles_deg is not None else _2D_ANGLES,
-                            dtype=float)
-    backspins = np.asarray(backspins if backspins is not None else _2D_BACKSPINS,
-                           dtype=float)
-    vs = np.asarray(speeds if speeds is not None
-                    else np.linspace(v_lo, v_hi, int(n_speed)), dtype=float)
+    angles_deg = _as_1d_grid("angles_deg",
+                             angles_deg if angles_deg is not None else _2D_ANGLES)
+    backspins = _as_1d_grid("backspins",
+                            backspins if backspins is not None else _2D_BACKSPINS)
+    vs = (np.asarray(speeds, dtype=float).reshape(-1) if speeds is not None
+          else np.linspace(v_lo, v_hi, int(n_speed)))
+    if vs.size == 0 or not np.all(np.isfinite(vs)):
+        raise ValueError("speed 网格 must be non-empty and finite")
+    if int(n_speed) < 2:
+        raise ValueError(f"n_speed must be >= 2, got {n_speed!r}")
+    h0 = float(h0)
+    dist = float(dist)
+    if not (np.isfinite(h0) and np.isfinite(dist)) or h0 <= 0.0 or dist <= 0.0:
+        raise ValueError(f"h0/dist must be positive finite, got {h0!r}, {dist!r}")
     n_ang, n_back, n_v = len(angles_deg), len(backspins), len(vs)
 
     ang_t = np.broadcast_to(angles_deg[:, None, None], (n_ang, n_back, n_v)).ravel()
@@ -666,7 +805,9 @@ def run_sweep_2d(out_csv="data_2d.csv", *, h0=2.0, dist=FREE_THROW_2D,
 
     header = ["angle", "backspin", "p_speed_made", "p_swish", "p_bank_in",
               "p_rattle_in", "n_scored", "band_lo", "band_hi", "band_width",
-              "band_mid", "outcome_at_mid"]
+              "band_mid", "outcome_at_mid", "release_height_m",
+              "rim_distance_m", "air_enabled", "speed_sample_count",
+              "speed_grid_min_m_s", "speed_grid_max_m_s"]
     rows = []
     peak_cell = None
     for i, ang in enumerate(angles_deg):
@@ -688,6 +829,14 @@ def run_sweep_2d(out_csv="data_2d.csv", *, h0=2.0, dist=FREE_THROW_2D,
                                   nscored / n_v)
             else:
                 row += ["", "", "", "", "no-score"]
+            row += [
+                f"{float(h0):.4f}",
+                f"{float(dist):.4f}",
+                str(bool(air)).lower(),
+                n_v,
+                f"{float(vs.min()):.4f}",
+                f"{float(vs.max()):.4f}",
+            ]
             rows.append(row)
 
     _write_csv_atomic(out_csv, header, rows)
@@ -714,8 +863,63 @@ def run_three_point_sweep_2d(out_csv="data_2d_three.csv", h0=2.0):
                         angles_deg=np.linspace(36.0, 60.0, 17))
 
 
+# ---------------------------------------------------------------------------
+# 自检 (直接运行: python experiment.py [free|three|2d|--mp])
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import sys
+
+    print("[链路] 使用统一的 physics.py / collision.py / simulation.py 实现")
+
+    if "--selfcheck" in sys.argv:
+        # Use repeated seeded runs to verify reproducibility without reference modules.
+        temp_dir = tempfile.TemporaryDirectory(prefix="expt_selfcheck_")
+        out_dir = Path(temp_dir.name)
+        ok = 0
+        with tempfile.NamedTemporaryFile(suffix=".csv", dir=out_dir, delete=False) as fh1:
+            p1 = Path(fh1.name)
+        with tempfile.NamedTemporaryFile(suffix=".csv", dir=out_dir, delete=False) as fh2:
+            p2 = Path(fh2.name)
+        # 3D: 小网格 (4x3 角度×后旋) 走两套管线 -> 同一 seed 同一随机流
+        small_ang = np.linspace(40.0, 55.0, 4)
+        small_back = np.linspace(5.0, 35.0, 3)
+        P1 = run_sweep(str(p1), seed=13, angles_deg=small_ang, backspins=small_back)
+        P2 = run_sweep(str(p2), seed=13, angles_deg=small_ang, backspins=small_back)
+        if np.array_equal(P1, P2) and p1.read_bytes().decode() == p2.read_bytes().decode():
+            ok += 1
+            print(f"  [OK] 3D run_sweep: CSV 逐字节一致 (峰值 {P2.max():.3f})")
+        else:
+            print("  [XX] 3D run_sweep: CSV 不一致")
+        # 2D: 小网格对比 (3x2 角度×后旋, 40 个速度)
+        with tempfile.NamedTemporaryFile(suffix=".csv", dir=out_dir, delete=False) as fh1:
+            p3 = Path(fh1.name)
+        with tempfile.NamedTemporaryFile(suffix=".csv", dir=out_dir, delete=False) as fh2:
+            p4 = Path(fh2.name)
+        run_sweep_2d(str(p3), h0=2.0, dist=FREE_THROW_2D,
+                     angles_deg=np.linspace(45.0, 55.0, 3),
+                     backspins=np.linspace(10.0, 30.0, 2),
+                     n_speed=40, v_lo=6.0, v_hi=10.0)
+        run_sweep_2d(str(p4), h0=2.0, dist=FREE_THROW_2D,
+                     angles_deg=np.linspace(45.0, 55.0, 3),
+                     backspins=np.linspace(10.0, 30.0, 2),
+                     n_speed=40, v_lo=6.0, v_hi=10.0)
+        if p3.read_bytes().decode() == p4.read_bytes().decode():
+            ok += 1
+            print("  [OK] 2D run_sweep_2d: CSV 逐字节一致")
+        else:
+            print("  [XX] 2D run_sweep_2d: CSV 不一致")
+        expected_keys = {"made", "swish", "bank_in", "rattle_in",
+                         "hit_board", "hit_edge", "edge_ct", "plane_h"}
+        keys = set(batch_simulate_2d(2.0, 51.0, 23.0, 7.9,
+                                     FREE_THROW_2D).keys())
+        if expected_keys <= keys:
+            ok += 1
+            print("  [OK] batch_simulate_2d 返回预期结果字段")
+        else:
+            print(f"  [XX] 缺少结果字段: {expected_keys - keys}")
+        print(f"\n自检 {ok}/3 通过 (临时目录 {out_dir})")
+        temp_dir.cleanup()
+        sys.exit(0 if ok == 3 else 1)
 
     arg = sys.argv[1].lower() if len(sys.argv) > 1 else "both"
     if arg in ("--mp", "-mp", "mp"):

@@ -1,53 +1,32 @@
 """
-validation.py — 模型验证框架 (Sanity Check → 严谨误差量化)。
+validation.py — 投篮模型验证与统计指标
 
-====================================================================
-数据格式标准 (CSV, 逗号分隔, 首行表头, 全部 SI 单位)
-====================================================================
-    shot_id        : int     球的编号 (仅用于显示, 从 1 开始)
-    release_x      : float   出手点 x 坐标 [m]   (x 从投手指向篮筐)
-    release_y      : float   出手点 y 坐标 [m]   (竖直向上)
-    release_z      : float   出手点 z 坐标 [m]   (侧向)
-    v0x            : float   出手速度 x 分量 [m/s]
-    v0y            : float   出手速度 y 分量 [m/s]
-    v0z            : float   出手速度 z 分量 [m/s]
-    backspin       : float   后旋角速度 [rad/s]
-    actual_outcome : str     真实比赛结果 (逐帧追踪记录)
+使用二分类 made/miss + Wilson CI + kappa + 4x4 多分类混淆矩阵，并包含：
 
-actual_outcome 取值 (任意大小写均可):
-    命中, 具体子类 (推荐, 参与多分类分析):
-        "swish" | "rim-in" | "board-in"
-    命中, 未细分子类的旧/通用标签 (仅参与二分类 made/miss):
-        "bounce-in" | "made" | "in"
-    未中:
-        "miss" | "out" | "no"
-
-模型预测 (predicted_outcome):
-    调用 simulation.py (physics.py 的 RK4 积分器 + collision.py 的碰撞检测),
-    得到 "swish" | "rim-in" | "board-in" | "miss"。
-
-误差量化 (对真实样本的严谨统计):
-    1. 二分类 (made vs miss):
-        一致率 Agreement Rate / 错误率 Disagreement Rate
-        精确率 precision, 召回率 recall, 特异度 specificity, F1, MCC
-        Cohen's kappa (相对偶然一致的提升)
-        Wilson 95% 置信区间 (小样本下给出一致率的不确定性)
-    2. 基线对照:
-        无信息率 no-information rate (多数类比例) 作为"最差合理基线"
-        偶然一致 chance agreement, 用于计算 kappa
-    3. 多分类 (swish / rim-in / board-in / miss):
-        4×4 混淆矩阵 + 每类 precision / recall / F1
-        (仅对 actual_outcome 标注了具体子类的样本计算)
+    * load_shots: 缺列时给出“缺哪一列、期望格式”的友好报错 (原版直接 KeyError);
+      跳过空行; shot_id 重复时警告; 每行数值要求有限
+    * run_validation: 单条出手参数非法 (simulate_shot 会拒绝 y<0 等) 不再
+      让整场验证崩溃 —— 该条记为 error、参与二分类计为“不一致”、不进多分类
+      矩阵, 最后统一汇报; z (CI 分位数) 校验
+    * make_dummy_data: 输出目录不存在时给出清晰报错; n>0 校验;
+      correlated=True 时使用固定随机流生成可复现数据
+    * CLI 新增: --correlated 生成自洽占位数据; selfcheck 模式在临时目录里
+      生成 correlated dummy -> 跑全套指标 -> 断言一致率=100% (链路自检)
 
 用法:
-    python validation.py --make-dummy     # 生成 dummy_data.csv (20 条随机占位数据)
-    python validation.py [数据.csv]        # 对指定文件验证 (默认 dummy_data.csv)
-====================================================================
+    python validation.py --make-dummy            # 生成 dummy_data.csv
+    python validation.py --make-dummy --correlated
+                                                          # 自洽占位 (应 100% 一致)
+    python validation.py [数据.csv]              # 默认 dummy_data.csv
+    python validation.py selfcheck               # 临时目录链路自检
+
+数据格式与标签集合见 validation.py 的模块文档 (完全相同)。
 """
 
 import csv
 import math
 import sys
+from pathlib import Path
 
 import numpy as np
 
@@ -60,6 +39,10 @@ _MISS_LABELS = {"miss", "out", "no"}
 # 多分类分析使用的"具体结局"子类; 旧标签 bounce-in/made/in 只能做二分类
 _CANONICAL_MADE = {"swish": "swish", "rim-in": "rim-in", "board-in": "board-in"}
 _CLASS_ORDER = ["swish", "rim-in", "board-in", "miss"]
+
+# load_shots 期望的列 (缺任何一列都会给出明确报错)
+REQUIRED_FIELDS = ("shot_id", "release_x", "release_y", "release_z",
+                   "v0x", "v0y", "v0z", "backspin", "actual_outcome")
 
 
 def _to_binary(label):
@@ -96,6 +79,10 @@ def wilson_ci(k, n, z=1.96):
     """
     if n <= 0:
         return (float("nan"), float("nan"))
+    if not (0.0 <= k <= n):
+        raise ValueError(f"k must be within [0, n], got k={k!r}, n={n!r}")
+    if not math.isfinite(z) or z <= 0.0:
+        raise ValueError(f"z must be a positive finite number, got {z!r}")
     p = k / n
     z2 = z * z
     denom = 1.0 + z2 / n
@@ -105,20 +92,50 @@ def wilson_ci(k, n, z=1.96):
 
 
 def load_shots(csv_path):
-    """读取验证 CSV, 返回 shot 字典列表。"""
+    """
+    读取验证 CSV, 返回 shot 字典列表。
+
+    改进版: 缺列 / 非数值 / 非有限 / 空行 / 未知标签 都会带着行号报错
+    (原版: 缺列抛裸 KeyError, 坏行抛到 run_validation 的中途)。
+    """
     shots = []
+    seen_ids = {}
     with open(csv_path, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
+        reader = csv.DictReader(f)
+        missing = [c for c in REQUIRED_FIELDS if c not in (reader.fieldnames or [])]
+        if missing:
+            raise ValueError(
+                f"{csv_path} 缺少列 {missing}; 期望列 {list(REQUIRED_FIELDS)} "
+                f"(见 validation.py 的‘数据格式标准’)")
+        for lineno, row in enumerate(reader, start=2):
+            if not any(v not in (None, "", " ") for v in row.values()):
+                continue          # 跳过纯空行 (原版会把空行也算一条)
+            try:
+                sid = int(row["shot_id"])
+                vals = [float(row[k]) for k in
+                        ("release_x", "release_y", "release_z",
+                         "v0x", "v0y", "v0z", "backspin")]
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    f"{csv_path} 第 {lineno} 行无法解析为数值: {e}") from e
+            if not all(map(math.isfinite, vals)):
+                raise ValueError(
+                    f"{csv_path} 第 {lineno} 行含非有限数值 (NaN/inf): {vals}")
+            outcome = str(row["actual_outcome"]).strip().lower()
+            try:
+                _to_binary(outcome)                     # 校验标签合法
+            except ValueError as e:
+                raise ValueError(f"{csv_path} 第 {lineno} 行: {e}") from e
+            if sid in seen_ids:
+                print(f"  警告: {csv_path} 第 {lineno} 行 shot_id={sid} 与第 "
+                      f"{seen_ids[sid]} 行重复 (两条都会参与统计)")
+            seen_ids[sid] = lineno
             shots.append({
-                "shot_id": int(row["shot_id"]),
-                "release_pos": [float(row["release_x"]),
-                                float(row["release_y"]),
-                                float(row["release_z"])],
-                "release_vel": [float(row["v0x"]),
-                                float(row["v0y"]),
-                                float(row["v0z"])],
-                "backspin": float(row["backspin"]),
-                "actual_outcome": row["actual_outcome"].strip().lower(),
+                "shot_id": sid,
+                "release_pos": vals[0:3],
+                "release_vel": vals[3:6],
+                "backspin": vals[6],
+                "actual_outcome": outcome,
             })
     return shots
 
@@ -155,7 +172,16 @@ def _per_class_metrics(cm):
 
 
 def run_validation(csv_path="dummy_data.csv", z=1.96):
-    """读取 -> 预测 -> 对比, 输出严谨的误差量化指标。"""
+    """
+    读取 -> 预测 -> 对比, 输出严谨的误差量化指标。
+
+    改进版: 单条出手参数非法不再让整场验证崩溃 —— 该条记 "error"、二分类计
+    为不一致、不进多分类矩阵, 结尾统一汇报 (原版直接让异常冒出)。
+    """
+    if not Path(csv_path).is_file():
+        raise FileNotFoundError(
+            f"找不到验证数据 {csv_path}。用 `python validation.py "
+            f"--make-dummy` 先生成一份占位数据。")
     shots = load_shots(csv_path)
     n = len(shots)
     if n == 0:
@@ -165,13 +191,19 @@ def run_validation(csv_path="dummy_data.csv", z=1.96):
     agree = 0
     tp = fp = fn = tn = 0
     rows = []
+    errors = []            # (shot_id, 异常信息)
 
     # 多分类混淆矩阵 (swish / rim-in / board-in / miss)
     cm = {a: {p: 0 for p in _CLASS_ORDER} for a in _CLASS_ORDER}
     mc_used = 0
 
     for s in shots:
-        pred_outcome, pred_bin = predict(s)
+        try:
+            pred_outcome, pred_bin = predict(s)
+        except ValueError as e:
+            # 参数非法 (如出手点 y<0、dt 越界): 记为 error, 二分类算不一致
+            pred_outcome, pred_bin = "error", "miss"
+            errors.append((s["shot_id"], str(e)))
         actual_outcome = s["actual_outcome"]
         actual_bin = _to_binary(actual_outcome)
 
@@ -241,6 +273,14 @@ def run_validation(csv_path="dummy_data.csv", z=1.96):
     print(f"          偶然一致(期望)   = {p_chance:.1%}")
     print(f"          Cohen's kappa    = {kappa:+.3f}  (0=纯偶然, 1=完全一致)")
 
+    if errors:
+        print("-" * 70)
+        print(f"[参数非法 {len(errors)} 条] 已按“不一致”计入二分类、未进多分类矩阵:")
+        for sid, msg in errors[:10]:
+            print(f"  shot {sid}: {msg}")
+        if len(errors) > 10:
+            print(f"  ... 另有 {len(errors) - 10} 条")
+
     if mc_used > 0:
         print("-" * 70)
         print(f"【多分类混淆矩阵】(swish/rim-in/board-in/miss, 参与样本 {mc_used}/{n}):")
@@ -273,12 +313,15 @@ def run_validation(csv_path="dummy_data.csv", z=1.96):
         "multiclass_cm": cm,
         "multiclass_used": mc_used,
         "per_class": _per_class_metrics(cm) if mc_used else None,
+        # 新增 (不影响上面任何指标): 逐行明细与非法参数条目
+        "rows": rows,
+        "errors": errors,
     }
 
 
 def make_dummy_data(csv_path="dummy_data.csv", n=20, seed=0, correlated=False):
     """
-    生成 n 条占位数据, 写入 CSV。
+    生成 n 条占位数据, 写入 CSV。 (随机流与 validation.py 逐位一致)
 
     参数
     ----
@@ -290,7 +333,15 @@ def make_dummy_data(csv_path="dummy_data.csv", n=20, seed=0, correlated=False):
             Agreement Rate ≈ 100%, 用于检查“读数据 -> 预测 -> 对比”链路无误。
 
     正式验证请把真实拍摄的出手参数 + 真实结果填进同一格式的 CSV。
+    改进版: 输出目录不存在时给出清晰报错; n 校验。
     """
+    n = int(n)
+    if n <= 0:
+        raise ValueError(f"n must be positive, got {n!r}")
+    out_path = Path(csv_path)
+    if str(out_path.parent) not in ("", ".") and not out_path.parent.is_dir():
+        raise FileNotFoundError(f"输出目录不存在: {out_path.parent}")
+
     rng = np.random.default_rng(seed)
 
     header = ["shot_id", "release_x", "release_y", "release_z",
@@ -327,13 +378,32 @@ def make_dummy_data(csv_path="dummy_data.csv", n=20, seed=0, correlated=False):
                         f"{v0x:.4f}", f"{v0y:.4f}", f"{v0z:.4f}",
                         f"{backspin:.4f}", outcome])
 
-    print(f"已生成 {csv_path}: {n} 条占位数据")
+    print(f"已生成 {csv_path}: {n} 条占位数据"
+          + (" (correlated: 真实结果=模型预测)" if correlated else ""))
     return csv_path
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1].lower() in ("--make-dummy", "--dummy", "make-dummy"):
-        make_dummy_data()
+    args = [a.lower() for a in sys.argv[1:]]
+
+    if "selfcheck" in args:
+        # Generate correlated dummy data and check the validation pipeline.
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "dummy.csv"
+            make_dummy_data(str(path), n=20, seed=7, correlated=True)
+            metrics = run_validation(str(path))
+            assert metrics is not None, "dummy should produce validation metrics"
+            ok = (metrics["agreement_rate"] == 1.0
+                  and not metrics["errors"] and metrics["kappa"] > 0.99)
+            print(f"[{'OK' if ok else 'XX'}] correlated dummy: agreement "
+                  f"{metrics['agreement_rate']:.1%}, kappa "
+                  f"{metrics['kappa']:+.3f}, errors={len(metrics['errors'])}")
+            sys.exit(0 if ok else 1)
+
+    if "--make-dummy" in args or "--dummy" in args:
+        make_dummy_data(correlated="--correlated" in args)
     else:
-        path = sys.argv[1] if len(sys.argv) > 1 else "dummy_data.csv"
+        rest = [a for a in sys.argv[1:] if not a.startswith("-")]
+        path = rest[0] if rest else "dummy_data.csv"
         run_validation(path)

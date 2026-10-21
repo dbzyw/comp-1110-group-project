@@ -32,7 +32,7 @@
 
 ## 2. 快速开始（免安装版）
 
-不想装 Python 的同学，直接下载仓库根目录的 [`basketball_shot_2d.exe`](basketball_shot_2d.exe)（2D 交互式模拟器的 PyInstaller 打包版），双击即可运行，无需任何依赖。
+不想装 Python 的同学，直接下载仓库根目录的 [`basketball_shot_2d.exe`](basketball_shot_2d.exe)（2D 交互式模拟器的 PyInstaller 打包版），双击即可运行，无需任何依赖。效果预览见 [SIMULATION_2D_DEMOS.md](SIMULATION_2D_DEMOS.md) 中的 6 个演示 GIF（空心、打板、弹筐、三分等典型场景）。
 
 ## 3. 核心特性
 
@@ -106,6 +106,7 @@ omega = (0, 0, +omega)
 | `test_collision.py` | 碰撞几何与速度响应的专项测试（PR #1 引入） |
 | `SIMULATION_2D_GUIDE.md` | 2D 模拟器使用指南（滑块/按钮/开关/读数） |
 | `SIMULATION_2D_PHYSICS.md` | 2D 模拟器物理模型与常数（含与 3D 流程的差异说明） |
+| `SIMULATION_2D_DEMOS.md` | 6 个典型场景的演示 GIF 解说（`demo_gifs/`） |
 | `碰撞.md` | 碰撞模型的计算方法、测试与改进方向 |
 | `requirements.txt` | Python 依赖列表 |
 | `HANDOVER_GUIDE.md` | 交接说明与运行顺序 |
@@ -204,7 +205,7 @@ python make_interactive.py
 - 相关交接说明： [HANDOVER_GUIDE.md](HANDOVER_GUIDE.md)
 - AI/协作者上下文说明： [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)
 - 详细项目计划与技术背景： [Specifications/](Specifications/)
-- 2D 模拟器： [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md) / [SIMULATION_2D_PHYSICS.md](SIMULATION_2D_PHYSICS.md)
+- 2D 模拟器： [SIMULATION_2D_GUIDE.md](SIMULATION_2D_GUIDE.md) / [SIMULATION_2D_PHYSICS.md](SIMULATION_2D_PHYSICS.md) / 演示 GIF 见 [SIMULATION_2D_DEMOS.md](SIMULATION_2D_DEMOS.md)
 - 碰撞模型细节： [碰撞.md](碰撞.md)
 
 如果你和队友都在同一个项目里协作，这个 README 可以作为"项目总入口"，帮助快速定位脚本、数据和结果文件。

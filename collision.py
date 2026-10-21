@@ -49,13 +49,22 @@ def _vector3(value, name):
     return vector
 
 
-def detect_backboard(pos) -> Collision | None:
+def _positive_scalar(value, name):
+    """Validate a positive finite scalar parameter."""
+    value = float(value)
+    if not np.isfinite(value) or value <= 0.0:
+        raise ValueError(f"{name} must be a finite positive number")
+    return value
+
+
+def detect_backboard(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
     """Detect a sphere touching the finite rectangular backboard.
 
     The nearest point on the rectangle is used, so edge and corner contacts are
     included (unlike an infinite-plane test clipped by the ball-centre bounds).
     """
     center = _vector3(pos, "pos")
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
     contact = np.array([
         BACKBOARD_X,
         np.clip(center[1], BACKBOARD_BOTTOM, BACKBOARD_TOP),
@@ -63,7 +72,7 @@ def detect_backboard(pos) -> Collision | None:
     ])
     delta = center - contact
     distance = float(np.linalg.norm(delta))
-    penetration = BALL_RADIUS - distance
+    penetration = ball_radius - distance
     if penetration < 0.0:
         return None
 
@@ -76,9 +85,10 @@ def detect_backboard(pos) -> Collision | None:
     return Collision("backboard", normal, penetration, contact)
 
 
-def detect_rim(pos) -> Collision | None:
+def detect_rim(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
     """Detect sphere contact with the thin horizontal circular rim."""
     center = _vector3(pos, "pos")
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
     horizontal = center[[0, 2]] - RIM_CENTER[[0, 2]]
     radius = float(np.linalg.norm(horizontal))
 
@@ -96,7 +106,7 @@ def detect_rim(pos) -> Collision | None:
     ])
     delta = center - contact
     distance = float(np.linalg.norm(delta))
-    penetration = BALL_RADIUS - distance
+    penetration = ball_radius - distance
     if penetration < 0.0:
         return None
 
@@ -109,14 +119,15 @@ def detect_rim(pos) -> Collision | None:
     return Collision("rim", normal, penetration, contact)
 
 
-def detect_any(pos) -> Collision | None:
+def detect_any(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
     """Return a backboard contact first, otherwise a rim contact."""
-    collision = detect_backboard(pos)
-    return collision if collision is not None else detect_rim(pos)
+    collision = detect_backboard(pos, ball_radius)
+    return collision if collision is not None else detect_rim(pos, ball_radius)
 
 
-def detect_backboard_batch(pos):
+def detect_backboard_batch(pos, ball_radius: float = BALL_RADIUS):
     """Vectorised rectangular-board test; returns hit, normal, penetration."""
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
     centers = np.asarray(pos, dtype=float)
     if centers.ndim != 2 or centers.shape[1] != 3 or not np.all(np.isfinite(centers)):
         raise ValueError("pos must be a finite array with shape (N, 3)")
@@ -128,7 +139,7 @@ def detect_backboard_batch(pos):
     ))
     delta = centers - contacts
     distance = np.linalg.norm(delta, axis=1)
-    penetration = BALL_RADIUS - distance
+    penetration = ball_radius - distance
     hit = penetration >= 0.0
 
     normals = np.zeros_like(centers)
@@ -139,8 +150,9 @@ def detect_backboard_batch(pos):
     return hit, normals, penetration
 
 
-def detect_rim_batch(pos):
+def detect_rim_batch(pos, ball_radius: float = BALL_RADIUS):
     """Vectorised rim test; returns hit, normal, penetration."""
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
     centers = np.asarray(pos, dtype=float)
     if centers.ndim != 2 or centers.shape[1] != 3 or not np.all(np.isfinite(centers)):
         raise ValueError("pos must be a finite array with shape (N, 3)")
@@ -159,7 +171,7 @@ def detect_rim_batch(pos):
     ))
     delta = centers - contacts
     distance = np.linalg.norm(delta, axis=1)
-    penetration = BALL_RADIUS - distance
+    penetration = ball_radius - distance
     hit = penetration >= 0.0
 
     normals = np.zeros_like(centers)
@@ -189,22 +201,23 @@ def reflect(vel, normal, e: float = RESTITUTION) -> np.ndarray:
     return velocity
 
 
-def resolve(pos, vel, collision: Collision, correct_position: bool = True):
+def resolve(pos, vel, collision: Collision, correct_position: bool = True,
+            restitution: float = RESTITUTION):
     """Apply the frictionless bounce and optionally remove geometric overlap."""
     position = _vector3(pos, "pos").copy()
-    velocity = reflect(vel, collision.normal, RESTITUTION)
+    velocity = reflect(vel, collision.normal, restitution)
     if correct_position and collision.penetration > 0.0:
         position += collision.normal * collision.penetration
     return position, velocity
 
 
-def _show(title, pos, vel, collision):
+def _show(title, pos, vel, collision, restitution=RESTITUTION):
     print(f"\n【{title}】")
     print(f"  碰撞前 pos = {np.asarray(pos)}; vel = {np.asarray(vel)}")
     if collision is None:
         print("  -> 未碰撞")
         return
-    new_pos, new_vel = resolve(pos, vel, collision)
+    new_pos, new_vel = resolve(pos, vel, collision, restitution=restitution)
     print(f"  类型={collision.kind}, 法向={collision.normal}, 嵌入深度={collision.penetration:.4f} m")
     print(f"  碰撞后 pos={new_pos}; vel={new_vel}")
 

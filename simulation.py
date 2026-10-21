@@ -1,9 +1,17 @@
 """
-simulation.py — 完整投篮模拟循环: RK4 积分 + 碰撞检测 + 得分判定 + 轨迹导出。
+simulation.py — 3D 投篮模拟循环与独立 2D 演示模拟
 
-把 physics.py 的 RK4 积分器与 collision.py 的碰撞检测串起来:
-    每一帧先积分得到新位置, 立刻做碰撞检测; 若发生碰撞就更新速度;
-    若球落地 (y <= 0) 或穿过篮筐 (判定得分) 就停止。
+统一提供 3D simulate_shot 与 2D simulate_2d/fit/readout，并加强输入与输出校验：
+
+    * 输入校验：dt/t_max/max_bounces/出手向量有限性与 shape；2D 参数
+      (h0/angle/spin/v/dist/opening_margin) 全部要求有限，margin 过大在
+      进入循环前就显式报错 (原版每步都会隐式拒绝进球)
+    * save_*/simulate_* 对 dict 输入的键检查与 numpy 标量显式 float()，
+      避免把 np.float64 写进 outcome/entry 这类会被序列化的字段
+    * 3D 与 2D 功能统一从 physics.py 和 collision.py 导入，避免重复模块
+
+坐标系与几何 (与 physics.py / collision.py 一致):
+    x 从投手指向篮筐, y 向上, z 侧向; 篮板在 x = 0, 筐心在 (-0.375, 3.05, 0)。
 
 得分规则:
     Swish    (空心)   : 从未碰筐/篮板, 球心向下穿过 y = 3.05 m 平面时
@@ -11,26 +19,6 @@ simulation.py — 完整投篮模拟循环: RK4 积分 + 碰撞检测 + 得分�
     Rim-in   (弹框进) : 只碰过篮筐(未碰篮板), 之后最终向下穿过筐洞。
     Board-in (打板进) : 碰过篮板(可能也碰过筐), 之后最终向下穿过筐洞。
     Miss     (未进)   : 落地、出界或超时, 且从未穿过筐洞。
-
-    与计划书 Scope 的四种结局 (swish / rim-and-in / board-and-in / miss) 对齐:
-    用 has_hit_rim / has_hit_board 两个状态标记细分 —— 碰过篮板归 board-in,
-    仅碰过筐归 rim-in, 都没碰归 swish。
-
-    筐洞半径 = 篮筐半径 0.225 m 减去球半径 0.12 m = 0.105 m (球有体积,
-    球心只有落在该半径内才能“不碰筐”地干净穿过)。见下方 SCORE_RADIUS。
-
-同一文件里还有第二套 API (下划线后缀 `_2d`)，与根目录单文件
-    basketball_shot_2d.py 同源：
-    * `simulate_2d(h0, angle, spin, v, dist)`：2D 交互器的逐步碰撞循环，
-      板面用“本步实际穿越”触发、筐口用前后两个刚性圆点，法向 0.70 + 切向 0.85，
-      结局 SWISH / BANK-IN / RATTLE-IN / 各类 miss，额外产出 `plane_h`、`peak`、
-      `entry`、`contacts`（含碰前/碰后速度）与逐帧速度。
-    * `fit_segments_2d(res)`：把整条 RK4 轨迹按板面碰撞与水平方向反转点切段，
-      对每段做 y(x) 二次拟合（系数里携带阻力、升力与反弹）。
-      两套常数不可混用：2D 质量 0.60 kg / 密度 1.204 / C_D 0.47 / 筐半径 0.2287。
-
-坐标系与几何 (与 physics.py / collision.py 一致):
-    x 从投手指向篮筐, y 向上, z 侧向; 篮板在 x = 0, 筐心在 (-0.375, 3.05, 0)。
 """
 
 import math
@@ -38,10 +26,9 @@ import math
 import numpy as np
 
 from physics import rk4_step, spin_vector, release_velocity, BALL_RADIUS
-from collision import (
-    detect_all, resolve_contacts,
-    RIM_HEIGHT, RIM_RADIUS, RIM_CENTER, BACKBOARD_X,
-)
+from collision import (detect_all, resolve_contacts,
+                       RIM_HEIGHT, RIM_RADIUS, RIM_CENTER, BACKBOARD_X)
+
 # 得分半径: 球心能“不碰筐”地穿过筐洞的最大水平偏移 [m]
 # = 篮筐半径 0.225 - 球半径 0.12 = 0.105
 # 若想用更宽松的“球心在筐半径 0.225 m 内就算进”判据, 改为 RIM_RADIUS。
@@ -50,26 +37,24 @@ SCORE_RADIUS = RIM_RADIUS - BALL_RADIUS
 # ---------------------------------------------------------------------------
 # 2D 引擎的导入（与单文件同源；单独拷贝本文件时也能降级运行）
 # ---------------------------------------------------------------------------
-try:
-    from physics import (BALL_RADIUS_2D, RIM_HEIGHT_2D, FREE_THROW_2D,
-                         RELEASE_FLOOR_2D, MAGNUS_PARAM_2D, DRAG_PARAM_2D, G_2D,
-                         rk4_step_2d, spin_in_plane_2d, ideal_parabola_2d,
-                         vacuum_aim_2d, air_load_2d, curvature_flatten_pct_2d,
-                         THREE_POINT_2D)
-    from collision import (hoop_geometry_2d, bounce_off_board_2d,
-                           bounce_off_rim_edge_2d, detect_scoring_cross_2d,
-                           classify_outcome_2d, canonical_outcome_2d,
-                           MADE_OUTCOMES_2D, MAX_BOARD_BOUNCES_2D,
-                           OPENING_MARGIN_2D)
-except ImportError:  # 2D 层未安装时，仍保留 3D 主流程可用
-    (BALL_RADIUS_2D, RIM_HEIGHT_2D, FREE_THROW_2D, RELEASE_FLOOR_2D,
-     MAGNUS_PARAM_2D, DRAG_PARAM_2D, G_2D) = (None,) * 7
-    rk4_step_2d = spin_in_plane_2d = ideal_parabola_2d = vacuum_aim_2d = None
-    air_load_2d = curvature_flatten_pct_2d = None
-    hoop_geometry_2d = bounce_off_board_2d = bounce_off_rim_edge_2d = None
-    detect_scoring_cross_2d = classify_outcome_2d = canonical_outcome_2d = None
-    MADE_OUTCOMES_2D = THREE_POINT_2D = None
-    MAX_BOARD_BOUNCES_2D = OPENING_MARGIN_2D = None
+from physics import (BALL_RADIUS_2D, RIM_HEIGHT_2D, FREE_THROW_2D,
+                     RELEASE_FLOOR_2D, MAGNUS_PARAM_2D, DRAG_PARAM_2D,
+                     G_2D, rk4_step_2d, spin_in_plane_2d,
+                     ideal_parabola_2d, vacuum_aim_2d, air_load_2d,
+                     curvature_flatten_pct_2d, THREE_POINT_2D)
+from collision import (hoop_geometry_2d, bounce_off_board_2d,
+                       bounce_off_rim_edge_2d, detect_scoring_cross_2d,
+                       classify_outcome_2d, canonical_outcome_2d,
+                       MADE_OUTCOMES_2D, MAX_BOARD_BOUNCES_2D,
+                       OPENING_MARGIN_2D)
+
+
+def _finite(name, value):
+    """要求有限实数并转成 Python float。"""
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite, got {value!r}")
+    return value
 
 
 def save_trajectory_csv(path, times, states):
@@ -79,7 +64,20 @@ def save_trajectory_csv(path, times, states):
     path   : 输出文件路径
     times  : np.ndarray, shape (N,)
     states : np.ndarray, shape (N, 6)  每行 [x, y, z, vx, vy, vz]
+
+    改进版: 校验两个输入为有限数组且行数一致 (原版会把 ragged 输入写成
+    错误的 CSV)。
     """
+    times = np.asarray(times, dtype=float)
+    states = np.asarray(states, dtype=float)
+    if times.ndim != 1 or states.ndim != 2 or states.shape[1] != 6:
+        raise ValueError(
+            f"times must be (N,) and states (N, 6), got {times.shape} and {states.shape}")
+    if times.shape[0] != states.shape[0]:
+        raise ValueError(
+            f"times/states row mismatch: {times.shape[0]} vs {states.shape[0]}")
+    if not np.all(np.isfinite(times)) or not np.all(np.isfinite(states)):
+        raise ValueError("times/states must be all finite")
     data = np.column_stack((times, states))          # (N, 7)
     header = "time,x,y,z,vx,vy,vz"
     np.savetxt(path, data, delimiter=",", header=header, comments="", fmt="%.6f")
@@ -88,7 +86,7 @@ def save_trajectory_csv(path, times, states):
 def simulate_shot(release_pos, release_vel, backspin_rate,
                   dt: float = 1e-3, t_max: float = 4.0, max_bounces: int = 50):
     """
-    模拟一次完整投篮。
+    模拟一次完整投篮 (与 simulation.simulate_shot 行为逐位一致)。
 
     参数
     ----
@@ -111,10 +109,23 @@ def simulate_shot(release_pos, release_vel, backspin_rate,
     """
     # 输入校验与隧穿保护: dt 过大时球可能单步穿过篮筐
     # (碰撞管道直径约 0.24 m; 在 dt=2e-3 下需 >120 m/s 才会隧穿, 篮球远达不到)
+    if dt <= 0.0:
+        raise ValueError(f"dt must be positive, got {dt!r}")
     if dt > 2e-3:
         raise ValueError(f"dt = {dt} 过大, 可能发生隧穿 (建议 dt <= 2e-3)")
+    _finite("t_max", t_max)
+    if t_max < 0.0:
+        raise ValueError(f"t_max must be non-negative, got {t_max!r}")
+    if int(max_bounces) < 0:
+        raise ValueError(f"max_bounces must be non-negative, got {max_bounces!r}")
+    max_bounces = int(max_bounces)
 
     release_pos = np.asarray(release_pos, dtype=float)
+    release_vel = np.asarray(release_vel, dtype=float)
+    if release_pos.shape != (3,) or not np.all(np.isfinite(release_pos)):
+        raise ValueError(f"release_pos must be a finite shape (3,) vector, got {release_pos!r}")
+    if release_vel.shape != (3,) or not np.all(np.isfinite(release_vel)):
+        raise ValueError(f"release_vel must be a finite shape (3,) vector, got {release_vel!r}")
     if release_pos[1] < 0.0:
         raise ValueError(f"出手点 y = {release_pos[1]:.3f} < 0, 球不能在地面以下")
 
@@ -122,7 +133,7 @@ def simulate_shot(release_pos, release_vel, backspin_rate,
 
     state = np.empty(6, dtype=float)
     state[0:3] = release_pos
-    state[3:6] = np.asarray(release_vel, dtype=float)
+    state[3:6] = release_vel
 
     times = [0.0]
     states = [state.copy()]
@@ -144,7 +155,8 @@ def simulate_shot(release_pos, release_vel, backspin_rate,
         # 1) 落地: 球心 y <= 0 (插值到恰好 y = 0)
         if state[1] <= 0.0:
             y_prev = prev[1]
-            frac = y_prev / (y_prev - state[1])
+            denom = y_prev - state[1]
+            frac = y_prev / denom if denom != 0.0 else 0.0
             land = prev + frac * (state - prev)
             times.append((t - dt) + frac * dt)
             states.append(land)
@@ -154,7 +166,8 @@ def simulate_shot(release_pos, release_vel, backspin_rate,
 
         # 2) 得分: 向下穿过筐面 (y = 3.05) 且水平落在筐洞内
         if prev[1] > RIM_HEIGHT and state[1] <= RIM_HEIGHT:
-            frac = (prev[1] - RIM_HEIGHT) / (prev[1] - state[1])
+            denom = prev[1] - state[1]
+            frac = (prev[1] - RIM_HEIGHT) / denom if denom != 0.0 else 1.0
             xc = prev[0] + frac * (state[0] - prev[0])
             zc = prev[2] + frac * (state[2] - prev[2])
             h = math.hypot(xc - RIM_CENTER[0], zc - RIM_CENTER[2])
@@ -249,7 +262,7 @@ def simulate_2d(h0: float, angle_deg: float, spin: float, v: float, dist: float,
         T/X/Y/VX/VY  : 逐帧时间、位置与速度（numpy 数组）
         outcome      : "SWISH"/"BANK-IN"/"RATTLE-IN" 或具体 miss 描述
         made         : bool
-        entry        : 入筐角 [deg]，未进为 None
+        entry        : 入筐角 [deg]，未进为 None (已转成 Python float)
         plane_h      : 球心首次到达 x = dist 时的高度 [m]（供“短/长”判据）
         peak         : 最高点 [m]
         board/hits   : 是否碰过板 / 板面反弹次数
@@ -259,10 +272,35 @@ def simulate_2d(h0: float, angle_deg: float, spin: float, v: float, dist: float,
         air          : 本发是否开启空气
         contacts     : 碰撞记录列表（kind/t/x/y/tin/tout，板面额外有 face，
                        筐沿额外有 edge）
+
+    改进版: 进入循环前一次性校验所有参数；opening_margin 大到筐口窗口
+    消失时立即报错 (原版会在每一步的进球判据里静默永远不进球)。
     """
+    if not ALL_NAMES_2D_READY:
+        raise RuntimeError("2D 引擎未安装 (physics/collision 缺 *_2D 符号)")
+    h0, angle_deg, spin, v, dist = map(_finite, ("h0", "angle_deg", "spin", "v", "dist"),
+                                        (h0, angle_deg, spin, v, dist))
+    dt = _finite("dt", dt)
+    if dt <= 0.0:
+        raise ValueError(f"dt must be positive, got {dt!r}")
+    max_t = _finite("max_t", max_t)
+    if max_t <= 0.0:
+        raise ValueError(f"max_t must be positive, got {max_t!r}")
+    if int(max_board_bounces) < 0:
+        raise ValueError(f"max_board_bounces must be non-negative, got {max_board_bounces!r}")
+    max_board_bounces = int(max_board_bounces)
+    opening_margin = _finite("opening_margin", opening_margin)
+    if opening_margin < 0.0:
+        raise ValueError(f"opening_margin must be >= 0, got {opening_margin!r}")
+
     th = math.radians(angle_deg)
     wz = spin * math.sin(th)
     xF, xB, xbc = hoop_geometry_2d(dist)
+    if xF + opening_margin >= xB - opening_margin:
+        raise ValueError(
+            f"opening_margin = {opening_margin:.4f} m closes the hoop window "
+            f"(xF = {xF:.4f}, xB = {xB:.4f}); must be < (xB - xF)/2 = "
+            f"{(xB - xF) / 2:.4f} m")
 
     s = np.array([0.0, h0, v * math.cos(th), v * math.sin(th)])
     T = [0.0]; X = [s[0]]; Y = [s[1]]; VX = [s[2]]; VY = [s[3]]
@@ -344,6 +382,12 @@ def simulate_2d(h0: float, angle_deg: float, spin: float, v: float, dist: float,
                 flight=t, air=air, contacts=contacts)
 
 
+ALL_NAMES_2D_READY = (rk4_step_2d is not None and
+                      hoop_geometry_2d is not None and
+                      detect_scoring_cross_2d is not None and
+                      MADE_OUTCOMES_2D is not None)
+
+
 def fit_segments_2d(res):
     """
     把整条 2D RK4 轨迹切成若干“在 x 上单值”的段落，对每段做 y(x) 二次拟合。
@@ -351,14 +395,20 @@ def fit_segments_2d(res):
     切点：出手、每次**板面**碰撞、以及每个水平方向反转点（板/筐反弹后
     反向飞行），保证每段 x 单调，拟合才有意义；反向段会被翻转后再拟合。
     因此每段二次系数里“编码”了空气阻力、马格努斯升力和全部反弹，
-    UI 里的青色弧线和读出面板的“轨迹函数”就是它（与单文件的 `fit_segments` 同构）。
+    UI 里的青色弧线和读出面板的“轨迹函数”就是它（与单文件的 fit_segments 同构）。
 
     返回按时间顺序的段落列表，每段 dict：
         a2, a1, a0   : y = a2*x^2 + a1*x + a0
         x0, x1       : 适用区间 [m]
         after        : 是否属于反弹之后的分支
     """
-    T, X, Y = res["T"], res["X"], res["Y"]
+    missing = [k for k in ("T", "X", "Y", "contacts") if k not in res]
+    if missing:
+        raise ValueError(f"res missing keys {missing} (需 simulate_2d 的返回值)")
+    T, X, Y = np.asarray(res["T"], dtype=float), np.asarray(res["X"], dtype=float), \
+        np.asarray(res["Y"], dtype=float)
+    if not (T.shape == X.shape == Y.shape) or T.ndim != 1:
+        raise ValueError("res['T'/'X'/'Y'] must be 1-D arrays of the same length")
     cuts = [T[0]] + [c["t"] for c in res["contacts"] if c["kind"] == "board"] + [T[-1]]
     sgn = np.sign(np.diff(X))
     ch = np.where(np.diff(sgn) != 0)[0]
@@ -374,6 +424,9 @@ def fit_segments_2d(res):
         # 每段现在在 x 上单调；若反向则翻转让拟合沿前进方向跑
         if xs[-1] < xs[0]:
             xs, ys = xs[::-1], ys[::-1]
+        # 段内 x 几乎恒定时 polyfit 病态 -> 跳过 (原版会返回垃圾系数+警告)
+        if xs[-1] - xs[0] < 1e-9:
+            continue
         a2, a1, a0 = np.polyfit(xs, ys, 2)
         segs.append(dict(a2=float(a2), a1=float(a1), a0=float(a0),
                          x0=float(xs[0]), x1=float(xs[-1]),
@@ -386,7 +439,12 @@ def save_2d_csv(path, res):
     把 2D 模拟保存为 CSV：`time,x,y,vx,vy`（列为单文件本身只存了位置，
     本库额外存了速度，便于事后算入筐角与空气负荷）。
     """
+    missing = [k for k in ("T", "X", "Y", "VX", "VY") if k not in res]
+    if missing:
+        raise ValueError(f"res missing keys {missing} (需 simulate_2d 的返回值)")
     data = np.column_stack((res["T"], res["X"], res["Y"], res["VX"], res["VY"]))
+    if data.shape[1] != 5 or not np.all(np.isfinite(data)):
+        raise ValueError("res arrays must be finite 1-D vectors of equal length")
     np.savetxt(path, data, delimiter=",",
                header="time,x,y,vx,vy", comments="", fmt="%.6f")
 
@@ -406,7 +464,7 @@ def readout_2d(res, h0: float, angle_deg: float, spin: float, v: float,
     segs = fit_segments_2d(res)
     board_ct = [c for c in res["contacts"] if c["kind"] == "board"]
     out = dict(outcome=res["outcome"], canonical=canonical_outcome_2d(res["outcome"]),
-               made=res["made"], hang_time=float(res["T"][-1]),
+               made=bool(res["made"]), hang_time=float(res["T"][-1]),
                entry_angle=res["entry"], apex=float(res["peak"]),
                apex_vs_rim=float(res["peak"] - RIM_HEIGHT_2D),
                board_hits=len(board_ct), rim_hits=int(res["edge"]),
@@ -488,7 +546,7 @@ if __name__ == "__main__":
         collide = f"{ro['board_hits']}/{ro['rim_hits']}"
         print(f"{name:<20}{r2['outcome']:<24}{expect:<12}{entry:>9}"
               f"{r2['peak']:>9.2f}{collide:>11}  {'OK' if match else 'DIVERGE'}")
-    print(f"\n\u573a\u666f\u590d\u73b0: {ok}/{len(scenes)} \u4e0e SIMULATION_2D_DEMOS.md \u4e00\u81f4")
+    print(f"\n场景复原: {ok}/{len(scenes)} 与 SIMULATION_2D_DEMOS.md 一致")
 
     r2 = simulate_2d(2.00, 51.0, 23.0, 7.90, FREE_THROW_2D)
     ro = readout_2d(r2, 2.00, 51.0, 23.0, 7.90, FREE_THROW_2D)
@@ -518,3 +576,11 @@ if __name__ == "__main__":
         print(f"  y(x) 曲率比同参真空抛物线{verb} {abs(f_pct):.0f}%（与单文件 UI 同一个公式："
               f"(|a2_ideal|-|a2_fit|)/|a2_ideal|；阻力会拉平 x 方向而抬高 |a2|）")
     print(f"轨迹已保存到 {out_2d}  (列: time,x,y,vx,vy)")
+
+    print("\n[检查] 使用统一的 3D / 2D simulation 实现。")
+    try:
+        simulate_2d(2.00, 51.0, 23.0, 7.90, FREE_THROW_2D, opening_margin=0.30)
+        print("  opening_margin=0.30 m: 未拒绝 (应检查输入校验)")
+        raise SystemExit(1)
+    except ValueError as e:
+        print(f"  opening_margin=0.30 m: 输入校验通过 — {e}")

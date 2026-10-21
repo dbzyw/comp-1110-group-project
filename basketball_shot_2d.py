@@ -1,4 +1,22 @@
+"""
+basketball_shot_2d.py — 交互式 2D 篮球投篮模拟器
+
+Tkinter 交互器使用冻结常数 (COMP1110 deck) 和独立的 2D 投篮模型。
+`simulate` / `fit_segments` / `find_band` 包含输入校验与文档场景检查:
+
+    * ideal_parabola 拒绝 v<=0;
+      simulate 拒绝非有限参数; find_band 拒绝 steps<2 —— 全部只拦截
+        “本来就会崩/静默变 NaN”的输入
+    * `python basketball_shot_2d.py --check`: 无头自检模式，
+      复算 6 个 DEMO_SCENES 的文档结果 (不弹窗口，供 CI 使用)
+
+用法:
+    python basketball_shot_2d.py            # 打开交互器
+    python basketball_shot_2d.py --check    # 无头场景自检
+"""
+
 import math
+import sys
 import numpy as np
 import matplotlib
 matplotlib.use("TkAgg")
@@ -33,6 +51,24 @@ BOARD_C = "#7FA8CC"
 
 DEG = "°"
 
+# 与 SIMULATION_2D_DEMOS.md / simulation.py __main__ 相同的 6 个典型场景
+# (name, h0, angle, spin, v, dist, air, expected outcome)
+DEMO_SCENES = [
+    ("01_free_throw_swish", 2.00, 51.0, 23.0, 7.90, FT_DIST, True,  "SWISH"),
+    ("02_bank_shot",        2.00, 36.0, 23.0, 9.10, FT_DIST, True,  "BANK-IN"),
+    ("03_rattle_in",        2.00, 36.0, 23.0, 8.70, FT_DIST, True,  "RATTLE-IN"),
+    ("04_short_miss",       2.00, 51.0, 23.0, 6.00, FT_DIST, True,  "well short"),
+    ("05_air_off",          2.00, 51.0, 23.0, 7.90, FT_DIST, False, "BANK-IN"),
+    ("06_three_pointer",    2.00, 45.0, 23.0, 9.46, PT_DIST, True,  "SWISH"),
+]
+
+
+def _finite(name, value):
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite, got {value!r}")
+    return value
+
 
 def hoop_geoms(center):
     xF = center - RIM_R
@@ -41,18 +77,40 @@ def hoop_geoms(center):
 
 
 def ideal_parabola(h0, angle_deg, v):
-    """no-air y(x): y = h0 + x tan(th) - g x^2 / (2 v^2 cos^2(th))"""
+    """no-air y(x): y = h0 + x tan(th) - g x^2 / (2 v^2 cos^2(th))
+
+    改进版: v <= 0 显式 ValueError (原版直接 ZeroDivisionError)。
+    """
+    v = _finite("v", v)
+    if v <= 0.0:
+        raise ValueError(f"v must be positive, got {v!r}")
     th = math.radians(angle_deg)
     c = math.cos(th)
+    if abs(c) < 1e-12:
+        raise ValueError(f"angle_deg={angle_deg!r} is vertical; no finite a2")
     slope = math.tan(th)
     a2 = GRAV / (2 * v * v * c * c)
     b = h0 - 0.10
-    x_land = (slope + math.sqrt(slope * slope + 4 * a2 * b)) / (2 * a2)
+    disc = slope * slope + 4 * a2 * b
+    if disc < 0.0:
+        raise ValueError(
+            f"no landing root for h0={h0!r} angle={angle_deg!r} v={v!r} "
+            f"(disc={disc:.3e} < 0)")
+    x_land = (slope + math.sqrt(disc)) / (2 * a2)
     xs = np.linspace(0.0, x_land, 400)
     return xs, h0 + slope * xs - a2 * xs * xs, slope, a2, x_land
 
 
 def simulate(h0, angle_deg, spin, v, dist, air=True, max_t=4.0, dt=1e-3):
+    """一步一帧的 2D RK4 + 板面穿越 + 前后缘反弹 + 穿筐判定 (与原版逐位一致)。
+
+    改进版只在入口处拒绝非有限参数; 循环体、判据、结局串与原版完全相同。
+    """
+    h0 = _finite("h0", h0); angle_deg = _finite("angle_deg", angle_deg)
+    spin = _finite("spin", spin); v = _finite("v", v); dist = _finite("dist", dist)
+    max_t = _finite("max_t", max_t); dt = _finite("dt", dt)
+    if dt <= 0.0:
+        raise ValueError(f"dt must be positive, got {dt!r}")
     th = math.radians(angle_deg)
     wz = spin * math.sin(th)
     kd = BD if air else 0.0
@@ -174,11 +232,20 @@ def vacuum_aim(h0, angle_deg, dist):
     th = math.radians(angle_deg)
     rhs = h0 + dist * math.tan(th) - YR
     if rhs <= 0: return None
-    v = math.sqrt(0.5 * GRAV * dist * dist / (rhs * math.cos(th) ** 2))
+    c2 = math.cos(th) ** 2
+    if c2 < 1e-24: return None      # 改进版: 垂直仰角下“水平射程”无解 (同 vacuum_aim_2d)
+    v = math.sqrt(0.5 * GRAV * dist * dist / (rhs * c2))
     return v, rhs
 
 
 def find_band(h0, angle_deg, spin, dist, want="made", air=True, steps=150):
+    """最宽连续命中速度区段 (与 experiment.find_band_2d / UI SCAN WINDOW 同规则)。
+
+    改进版: steps < 2 显式 ValueError。
+    """
+    steps = int(steps)
+    if steps < 2:
+        raise ValueError(f"steps must be >= 2, got {steps!r}")
     vs = np.linspace(5.5, 14.5, steps)
     recs = [simulate(h0, angle_deg, spin, float(vv), dist, air=air) for vv in vs]
     flags = ([r["made"] for r in recs] if want == "made"
@@ -671,5 +738,26 @@ def main():
     plt.show()
 
 
+def headless_check():
+    """无头自检: 验证 6 个文档场景与输入边界 (供 CI, 不开窗口)。"""
+    ok = 0
+    for name, h0, ang, spin, v, dist, air, expect in DEMO_SCENES:
+        result = simulate(h0, ang, spin, v, dist, air=air)
+        match = result["outcome"] == expect
+        ok += int(match)
+        print(f"  {'OK ' if match else 'DIVERGE'} {name}: "
+              f"{result['outcome']} (expected {expect})")
+    try:
+        ideal_parabola(2.0, 51.0, 0.0)
+        print("  [XX] ideal_parabola(v=0) was not rejected")
+        ok = 0
+    except ValueError:
+        print("  OK  ideal_parabola(v=0) rejected")
+    print(f"\nbasketball_shot_2d --check: 文档场景通过 {ok}/{len(DEMO_SCENES)}")
+    return ok == len(DEMO_SCENES)
+
+
 if __name__ == "__main__":
+    if "--check" in sys.argv[1:]:
+        sys.exit(0 if headless_check() else 1)
     main()

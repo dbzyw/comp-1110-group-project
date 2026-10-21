@@ -181,16 +181,31 @@ The project is complete when it provides:
 ## 9. Related project documents
 
 - [Data specification for the validation pipeline](../data_validation/DATA_SPECIFICATION.md)
-- [Project plan (variant 3ce56a5a)](./Basketball-Free-Throw-Project-Plan-v2-3ce56a5a.md)
-- [Project plan (variant eaf0a7e2)](./Basketball-Free-Throw-Project-Plan-v2-eaf0a7e2.md)
-  — both are auto-converted from the *same* source PDF (identical byte count and
-  source hash). The two conversions disagree in content: variant 3ce56a5a states
-  the four-outcome research question (swish / rim-bounce-in / board-bounce-in /
-  miss) and the literature list used by the implemented project; variant
-  eaf0a7e2 omits the rim-in outcome and substitutes different citations. Quote
-  the plan from variant 3ce56a5a (or the PDF itself) as canonical.
+  (+ [improved copy with re-verified profiles and appendices](../data_validation/DATA_SPECIFICATION_improved.md))
+- [Project plan — current repository file](./Basketball-Free-Throw-Project-Plan-v2.md)
+  — after the consolidation commit `8906145 „Merging similar files“`, this file is the
+  auto-converted plan PDF in the tree: it is the *eaf0a7e2* variant renamed 1:1 (its
+  §2.2 states only three outcomes; the scoring rule elsewhere in the same file still
+  lists four, an internal inconsistency inherited from the conversion). The sibling
+  3ce56a5a variant (four-outcome research question, the literature the implemented
+  project cites) was deleted from the worktree; its byte-verbatim copy lives in git
+  history (`git show 9d843e8:Specifications/Basketball-Free-Throw-Project-Plan-v2-3ce56a5a.md`).
+- [Plan improved copy (variant 3ce56a5a)](./Basketball-Free-Throw-Project-Plan-v2-3ce56a5a_improved.md)
+  · [Plan improved copy (variant eaf0a7e2)](./Basketball-Free-Throw-Project-Plan-v2-eaf0a7e2_improved.md)
+  — both are cleaned re-formats of the two auto-conversions of the *same* source PDF
+  (identical bytes, same source hash `3d0503032065e2d4`); Appendix B in each records
+  the divergences. Quote the four-outcome plan from the 3ce56a5a improved copy, the
+  git-history original, or the PDF itself as canonical.
 - [Progress presentation notes (week 6)](./COMP1110_Basketball_Shot_Simulation_Progress-ea2c2143.md)
+  (+ [improved copy with a snapshot-vs-now appendix](./COMP1110_Basketball_Shot_Simulation_Progress-ea2c2143_improved.md))
 - [Project README](../README.md) · [Project context and interfaces](../PROJECT_CONTEXT.md)
 - [Final report draft](../Report_Draft.md) · [Presentation outline](../Presentation_Outline.md)
 - [2D simulator guide](../SIMULATION_2D_GUIDE.md) · [2D simulator physics](../SIMULATION_2D_PHYSICS.md) · [demo gallery](../SIMULATION_2D_DEMOS.md)
-- [Collision model notes](../Collision.md) (a byte-identical rename `碰撞.md` exists on the `LZY` branch)
+- [Collision model notes](../Collision.md)
+- The earlier per-document `*_improved.md` copies of the root guides (README,
+  HANDOVER, PROJECT_CONTEXT, Collision, 2D trio, Report_Draft, Presentation) were
+  merged into their originals by commit `8906145 „Merging similar files“` and removed;
+  `碰撞.md` (the LZY-branch rename of Collision.md, byte-identical) was likewise
+  dropped from the tree, and the current in-place refreshes (post-merge single-set
+  code status, `data_prep.py`/`valid_data.csv` inventory) live in those same originals
+  and in this improved copy set under `Specifications/`.

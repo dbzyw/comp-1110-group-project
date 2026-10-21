@@ -5,8 +5,10 @@ Assumptions:
 * The 51-degree vacuum projectile calculation ignores drag, Magnus lift, and
   rim/board contact. If no finite solution exists, use the requested component
   defaults (6 m/s, 4 m/s, 0 m/s).
-* Missing release height defaults to 2.0 m; lateral position and velocity are
-  assumed zero; backspin is fixed at 23 rad/s.
+* Missing release height is estimated from player height and shot type when
+  both are available; otherwise it defaults to 2.0 m. Lateral position and
+  velocity are assumed zero; backspin defaults to the midpoint of a 2.0–2.5
+  RPS practical target range (converted to rad/s). These are imputations.
 """
 
 import argparse
@@ -34,8 +36,16 @@ RIM_HEIGHT_M = 3.05
 GRAVITY_M_S2 = 9.81
 RELEASE_ANGLE_DEG = 51.0
 DEFAULT_RELEASE_HEIGHT_M = 2.0
+STANDING_REACH_HEIGHT_RATIO = 1.33
+BALL_CENTER_BELOW_REACH_M = 0.12
+MALE_VERTICAL_JUMP_MIN_M = 0.41
+MALE_VERTICAL_JUMP_MAX_M = 0.50
+SHOT_JUMP_FRACTION = 0.5
 DEFAULT_VELOCITY = (6.0, 4.0, 0.0)
-DEFAULT_BACKSPIN_RAD_S = 23.0
+BACKSPIN_TARGET_MIN_RPS = 2.0
+BACKSPIN_TARGET_MAX_RPS = 2.5
+DEFAULT_BACKSPIN_RPS = (BACKSPIN_TARGET_MIN_RPS + BACKSPIN_TARGET_MAX_RPS) / 2.0
+DEFAULT_BACKSPIN_RAD_S = 2.0 * math.pi * DEFAULT_BACKSPIN_RPS
 
 
 def _normalise_header(value):
@@ -103,6 +113,32 @@ def _initial_velocity(distance_m, release_y_m):
     return DEFAULT_VELOCITY
 
 
+def _estimate_release_height(player_height_m, shot_type, row_number):
+    height_m = _parse_finite_float(player_height_m, "player height", row_number)
+    if height_m <= 0.0:
+        raise ValueError(f"Row {row_number}: player height must be positive.")
+    if shot_type is None or not shot_type.strip():
+        raise ValueError(f"Row {row_number}: shot type is missing.")
+
+    shot_kind = _normalise_header(shot_type)
+    if shot_kind == "setshot":
+        jump_height_m = 0.0
+    elif shot_kind in {"jumpshot", "layup", "tipin"}:
+        typical_jump_m = (MALE_VERTICAL_JUMP_MIN_M + MALE_VERTICAL_JUMP_MAX_M) / 2.0
+        jump_height_m = SHOT_JUMP_FRACTION * typical_jump_m
+    else:
+        raise ValueError(
+            f"Row {row_number}: unsupported shot type {shot_type!r} for "
+            "release-height estimation."
+        )
+
+    return (
+        height_m * STANDING_REACH_HEIGHT_RATIO
+        - BALL_CENTER_BELOW_REACH_M
+        + jump_height_m
+    )
+
+
 def _read_rows(input_path):
     with input_path.open("r", encoding="utf-8-sig", newline="") as source:
         sample = source.read(8192)
@@ -143,9 +179,30 @@ def _read_rows(input_path):
             ),
             None,
         )
+        player_height_column = next(
+            (
+                name
+                for name in reader.fieldnames
+                if _normalise_header(name)
+                in {"heightcm", "heightm", "height", "playerheightcm",
+                    "playerheightm", "playerheight"}
+            ),
+            None,
+        )
+        shot_type_column = next(
+            (
+                name
+                for name in reader.fieldnames
+                if _normalise_header(name) in {"shottype", "shotcategory"}
+            ),
+            None,
+        )
 
         distance_scale = _unit_scale(distance_column)
         height_scale = _unit_scale(height_column) if height_column else 1.0
+        player_height_scale = (
+            _unit_scale(player_height_column) if player_height_column else 1.0
+        )
         output_rows = []
         for row_number, raw in enumerate(reader, start=2):
             if not any(value not in (None, "") for value in raw.values()):
@@ -166,7 +223,26 @@ def _read_rows(input_path):
 
             release_y_value = raw.get(height_column, "") if height_column else ""
             if release_y_value is None or not release_y_value.strip():
-                release_y_m = DEFAULT_RELEASE_HEIGHT_M
+                if player_height_column and shot_type_column:
+                    player_height_value = raw.get(player_height_column, "")
+                    shot_type_value = raw.get(shot_type_column, "")
+                    if (
+                        player_height_value is None
+                        or not player_height_value.strip()
+                    ):
+                        raise ValueError(
+                            f"Row {row_number}: player height is missing."
+                        )
+                    release_y_m = _estimate_release_height(
+                        _parse_finite_float(
+                            player_height_value, player_height_column, row_number
+                        )
+                        * player_height_scale,
+                        shot_type_value,
+                        row_number,
+                    )
+                else:
+                    release_y_m = DEFAULT_RELEASE_HEIGHT_M
             else:
                 release_y_m = _parse_finite_float(
                     release_y_value, height_column, row_number

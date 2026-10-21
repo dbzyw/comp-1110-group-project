@@ -2,23 +2,26 @@
 
 - Input: `data_validation/valid_data.csv` (305 records).
 - Validation implementation: `validation.py` calling the existing `simulate_shot()` model; model constants were not tuned.
-- Prediction target: binary made/miss agreement. The simulation also returns swish/rim-in/board-in/miss, but the input labels mostly contain no made-shot subtype.
+- Prediction target: binary made/miss agreement. Generic `made` labels are not assigned an invented made-shot subtype.
+- Spin input: 2.25 RPS (midpoint of the [Spalding TF DNA app's 2.0-2.5 RPS practical target range](https://smartbasketball.spalding.com/pages/spin-rate-soft-touch-from-proper-shot-mechanics)) = 14.137167 rad/s; spin was not measured in the source data.
+- Release-height scenario: adult male; estimated fingertip standing reach = `1.33 x stature`, ball-centre offset = `-0.12 m`; add half of a 45.5 cm typical vertical-jump test value for Jump Shot, Layup, and Tip-in; Set Shot gets no jump increment. These are assumptions, not per-shot measurements.
+- The [adult vertical-jump reference](https://www.topendsports.com/testing/norms/vertical-jump.htm) reports 41-50 cm for men and describes a two-leg test with full arm movement. The [NBA Draft Combine benchmark study](https://doi.org/10.47206/ijsc.v6i1.496) has elite-player reach/jump data but does not validate this shot-level formula.
 
 ## Executive result
 
-The model predicted **miss for all 305 shots**. It agreed with 152/305 provided labels (**49.84%**, Wilson 95% CI **[44.26%, 55.41%]**). This score is not evidence of empirical model performance: the input velocities/positions/backspin are substantially assumption-based, and the five selected-condition rows use assumed made labels and unconfirmed axes/units.
+The model predicted **74 made** and **231 miss**. It agreed with 154/305 provided labels (**50.49%**, Wilson 95% CI **[44.91%, 56.06%]**). This is not an empirical model-performance estimate: release positions and velocities are assumption-based, and the five selected-condition rows have assumed made labels and unconfirmed axes/units.
 
 ## Validation checks
 
 | Check | Result |
 |---|---|
-| Required validation columns present in expected order | PASS |
-| 305 rows; integer IDs are unique and sequential (1-305) | PASS |
-| All seven physical input fields parse as finite numbers | PASS |
-| All outcomes are accepted labels (made/miss) | PASS |
-| Simulation parameter errors | PASS |
-
-Outcome counts: **153 made**, **152 miss**. Simulation errors: **0**.
+| Required nine-column schema; 305 records | PASS |
+| Unique sequential integer IDs 1-305 | PASS |
+| Physical fields finite and outcomes accepted | PASS |
+| Simulation parameter errors | 0 |
+| All rows use documented 2.25 RPS spin imputation | PASS |
+| Height estimate on converted records | 2.141000-2.767500 m |
+| Outcome counts | 153 made / 152 miss |
 
 ## Binary metrics
 
@@ -26,362 +29,353 @@ Positive class is `made`.
 
 | Metric | Result |
 |---|---:|
-| Agreement / accuracy | 152/305 = 49.84% |
-| Wilson 95% CI for agreement | [44.26%, 55.41%] |
-| Disagreement | 153/305 = 50.16% |
-| Precision (made) | 0.00% |
-| Recall / sensitivity (made) | 0.00% |
-| Specificity | 100.00% |
-| F1 (made) | 0.000 |
-| Matthews correlation coefficient | 0.000 |
-| Cohen's kappa | 0.000 |
-| Chance agreement | 49.84% |
-| No-information rate (majority actual class) | 50.16% |
+| Agreement / accuracy | 154/305 = 50.49% |
+| Wilson 95% CI | [44.91%, 56.06%] |
+| Disagreement | 49.51% |
+| Precision (made) | 51.35% |
+| Recall / sensitivity (made) | 24.84% |
+| Specificity | 76.32% |
+| F1 (made) | 0.335 |
+| Matthews correlation coefficient | 0.013 |
+| Cohen's kappa | 0.012 |
+| Chance agreement | 49.92% |
+| No-information rate | 50.16% |
 
 ### Binary confusion matrix
 
 | Actual \ Predicted | Made | Miss |
 |---|---:|---:|
-| Made | TP 0 | FN 153 |
-| Miss | FP 0 | TN 152 |
-
-Because no shots were predicted made, precision has a zero denominator and the implementation reports 0; MCC and kappa also return 0 for this degenerate all-miss predictor. Accuracy equals the miss-class prevalence (chance agreement, 49.84%) and is 0.33 percentage points below the no-information rate (50.16%).
+| Made | TP 38 | FN 115 |
+| Miss | FP 36 | TN 116 |
 
 ## Cohort breakdown
 
 | Cohort | n | Actual made | Actual miss | Agreement |
 |---|---:|---:|---:|---:|
-| Converted source dataset (IDs 1-300) | 300 | 148 | 152 | 152/300 (50.67%) |
+| Converted source dataset (IDs 1-300) | 300 | 148 | 152 | 154/300 (51.33%) |
 | Selected initial conditions (IDs 301-305) | 5 | 5 | 0 | 0/5 (0.00%) |
 
-IDs 1-300 were converted by `data_prep.py`; their shot inputs are generated from assumed straight-line distance, a 51-degree idealized launch, default release height where absent, zero lateral motion, and fixed 23 rad/s backspin. IDs 301-305 were copied from `selected_shot_initial_conditions.csv`; their outcomes were set to `made` and backspin to 23 rad/s. Their coordinate axes/units are unconfirmed, and their release heights (7.718-10.833 m) are questionable as basketball release heights. The five-row subgroup result therefore compares predictions against assumed labels and should not be interpreted as measured shot accuracy.
+IDs 1-300 use the stature/shot-type release-height scenario, straight-line distance, an idealized 51-degree launch, and zero lateral motion. IDs 301-305 copy coordinates and velocities from `selected_shot_initial_conditions.csv`; their outcomes were set to `made` and their coordinate axes/units remain unconfirmed. The validation scores therefore describe only this constructed input set, not observed real-world prediction accuracy.
 
 ## Four-class outcome results
 
-Only **152/305** records enter the four-class matrix: the 152 `miss` labels. The 153 generic `made` labels do not specify `swish`, `rim-in`, or `board-in`, so they are correctly excluded rather than assigned an invented subtype.
+Only **152/305** records enter the four-class matrix; generic `made` labels do not identify swish, rim-in, or board-in.
 
 | Actual \ Predicted | swish | rim-in | board-in | miss |
 |---|---:|---:|---:|---:|
 | swish | 0 | 0 | 0 | 0 |
 | rim-in | 0 | 0 | 0 | 0 |
 | board-in | 0 | 0 | 0 | 0 |
-| miss | 0 | 0 | 0 | 152 |
-
-| Class | Precision | Recall | F1 | Actual support |
-|---|---:|---:|---:|---:|
-| swish | n/a | n/a | n/a | 0 |
-| rim-in | n/a | n/a | n/a | 0 |
-| board-in | n/a | n/a | n/a | 0 |
-| miss | 100.00% | 100.00% | 1.000 | 152 |
+| miss | 0 | 7 | 29 | 116 |
 
 ## Per-shot validation data
 
-Each input row is reproduced below with its observed label, model prediction, and binary agreement. Numeric input text is preserved from the source CSV.
+Each validation input is reproduced with its label, model prediction, and binary agreement.
 
 | ID | Cohort | release_x | release_y | release_z | v0x | v0y | v0z | backspin | Actual | Predicted | Match |
 |---:|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|
-| 1 | converted | -4.765000 | 2.000000 | 0.000000 | 4.650330 | 5.742679 | 0.000000 | 23.000000 | made | miss | no |
-| 2 | converted | -5.135000 | 2.000000 | 0.000000 | 4.797753 | 5.924731 | 0.000000 | 23.000000 | miss | miss | yes |
-| 3 | converted | -3.685000 | 2.000000 | 0.000000 | 4.206188 | 5.194209 | 0.000000 | 23.000000 | miss | miss | yes |
-| 4 | converted | -7.445000 | 2.000000 | 0.000000 | 5.649862 | 6.976999 | 0.000000 | 23.000000 | miss | miss | yes |
-| 5 | converted | -5.585000 | 2.000000 | 0.000000 | 4.972928 | 6.141055 | 0.000000 | 23.000000 | made | miss | no |
-| 6 | converted | -2.335000 | 2.000000 | 0.000000 | 3.708106 | 4.579130 | 0.000000 | 23.000000 | made | miss | no |
-| 7 | converted | -5.165000 | 2.000000 | 0.000000 | 4.809574 | 5.939329 | 0.000000 | 23.000000 | miss | miss | yes |
-| 8 | converted | -2.385000 | 2.000000 | 0.000000 | 3.719823 | 4.593599 | 0.000000 | 23.000000 | made | miss | no |
-| 9 | converted | -2.985000 | 2.000000 | 0.000000 | 3.921227 | 4.842312 | 0.000000 | 23.000000 | miss | miss | yes |
-| 10 | converted | -5.695000 | 2.000000 | 0.000000 | 5.015050 | 6.193071 | 0.000000 | 23.000000 | made | miss | no |
-| 11 | converted | -2.055000 | 2.000000 | 0.000000 | 3.675749 | 4.539172 | 0.000000 | 23.000000 | made | miss | no |
-| 12 | converted | -4.195000 | 2.000000 | 0.000000 | 4.417832 | 5.455569 | 0.000000 | 23.000000 | made | miss | no |
-| 13 | converted | -2.815000 | 2.000000 | 0.000000 | 3.856850 | 4.762812 | 0.000000 | 23.000000 | miss | miss | yes |
-| 14 | converted | -2.215000 | 2.000000 | 0.000000 | 3.686076 | 4.551925 | 0.000000 | 23.000000 | miss | miss | yes |
-| 15 | converted | -2.475000 | 2.000000 | 0.000000 | 3.743828 | 4.623242 | 0.000000 | 23.000000 | made | miss | no |
-| 16 | converted | -1.555000 | 2.000000 | 0.000000 | 4.095520 | 5.057546 | 0.000000 | 23.000000 | made | miss | no |
-| 17 | converted | -7.805000 | 2.000000 | 0.000000 | 5.772833 | 7.128855 | 0.000000 | 23.000000 | miss | miss | yes |
-| 18 | converted | -5.555000 | 2.000000 | 0.000000 | 4.961393 | 6.126810 | 0.000000 | 23.000000 | miss | miss | yes |
-| 19 | converted | -4.415000 | 2.000000 | 0.000000 | 4.508258 | 5.567235 | 0.000000 | 23.000000 | miss | miss | yes |
-| 20 | converted | -6.095000 | 2.000000 | 0.000000 | 5.165922 | 6.379382 | 0.000000 | 23.000000 | made | miss | no |
-| 21 | converted | -2.225000 | 2.000000 | 0.000000 | 3.687527 | 4.553716 | 0.000000 | 23.000000 | made | miss | no |
-| 22 | converted | -2.775000 | 2.000000 | 0.000000 | 3.842269 | 4.744807 | 0.000000 | 23.000000 | made | miss | no |
-| 23 | converted | -3.065000 | 2.000000 | 0.000000 | 3.952571 | 4.881019 | 0.000000 | 23.000000 | miss | miss | yes |
-| 24 | converted | -5.395000 | 2.000000 | 0.000000 | 4.899526 | 6.050410 | 0.000000 | 23.000000 | made | miss | no |
-| 25 | converted | -4.755000 | 2.000000 | 0.000000 | 4.646305 | 5.737708 | 0.000000 | 23.000000 | made | miss | no |
-| 26 | converted | -3.045000 | 2.000000 | 0.000000 | 3.944685 | 4.871280 | 0.000000 | 23.000000 | made | miss | no |
-| 27 | converted | -2.065000 | 2.000000 | 0.000000 | 3.675546 | 4.538921 | 0.000000 | 23.000000 | made | miss | no |
-| 28 | converted | -1.555000 | 2.000000 | 0.000000 | 4.095520 | 5.057546 | 0.000000 | 23.000000 | miss | miss | yes |
-| 29 | converted | -3.735000 | 2.000000 | 0.000000 | 4.226980 | 5.219885 | 0.000000 | 23.000000 | made | miss | no |
-| 30 | converted | -3.145000 | 2.000000 | 0.000000 | 3.984411 | 4.920338 | 0.000000 | 23.000000 | miss | miss | yes |
-| 31 | converted | -3.735000 | 2.000000 | 0.000000 | 4.226980 | 5.219885 | 0.000000 | 23.000000 | made | miss | no |
-| 32 | converted | -2.755000 | 2.000000 | 0.000000 | 3.835077 | 4.735926 | 0.000000 | 23.000000 | miss | miss | yes |
-| 33 | converted | -5.445000 | 2.000000 | 0.000000 | 4.918922 | 6.074362 | 0.000000 | 23.000000 | miss | miss | yes |
-| 34 | converted | -3.965000 | 2.000000 | 0.000000 | 4.322599 | 5.337965 | 0.000000 | 23.000000 | made | miss | no |
-| 35 | converted | -4.825000 | 2.000000 | 0.000000 | 4.674437 | 5.772450 | 0.000000 | 23.000000 | made | miss | no |
-| 36 | converted | -6.415000 | 2.000000 | 0.000000 | 5.284073 | 6.525287 | 0.000000 | 23.000000 | miss | miss | yes |
-| 37 | converted | -7.485000 | 2.000000 | 0.000000 | 5.663645 | 6.994019 | 0.000000 | 23.000000 | miss | miss | yes |
-| 38 | converted | -3.925000 | 2.000000 | 0.000000 | 4.305985 | 5.317449 | 0.000000 | 23.000000 | miss | miss | yes |
-| 39 | converted | -3.245000 | 2.000000 | 0.000000 | 4.024757 | 4.970161 | 0.000000 | 23.000000 | made | miss | no |
-| 40 | converted | -6.605000 | 2.000000 | 0.000000 | 5.353182 | 6.610630 | 0.000000 | 23.000000 | made | miss | no |
-| 41 | converted | -7.805000 | 2.000000 | 0.000000 | 5.772833 | 7.128855 | 0.000000 | 23.000000 | miss | miss | yes |
-| 42 | converted | -3.415000 | 2.000000 | 0.000000 | 4.094329 | 5.056075 | 0.000000 | 23.000000 | miss | miss | yes |
-| 43 | converted | -1.855000 | 2.000000 | 0.000000 | 3.716976 | 4.590083 | 0.000000 | 23.000000 | made | miss | no |
-| 44 | converted | -4.485000 | 2.000000 | 0.000000 | 4.536860 | 5.602555 | 0.000000 | 23.000000 | miss | miss | yes |
-| 45 | converted | -3.315000 | 2.000000 | 0.000000 | 4.053281 | 5.005385 | 0.000000 | 23.000000 | made | miss | no |
-| 46 | converted | -1.865000 | 2.000000 | 0.000000 | 3.712728 | 4.584837 | 0.000000 | 23.000000 | made | miss | no |
-| 47 | converted | -1.845000 | 2.000000 | 0.000000 | 3.721528 | 4.595705 | 0.000000 | 23.000000 | made | miss | no |
-| 48 | converted | -2.455000 | 2.000000 | 0.000000 | 3.738205 | 4.616299 | 0.000000 | 23.000000 | miss | miss | yes |
-| 49 | converted | -2.315000 | 2.000000 | 0.000000 | 3.703796 | 4.573807 | 0.000000 | 23.000000 | made | miss | no |
-| 50 | converted | -7.665000 | 2.000000 | 0.000000 | 5.725296 | 7.070151 | 0.000000 | 23.000000 | miss | miss | yes |
-| 51 | converted | -1.575000 | 2.000000 | 0.000000 | 4.044091 | 4.994036 | 0.000000 | 23.000000 | miss | miss | yes |
-| 52 | converted | -2.605000 | 2.000000 | 0.000000 | 3.783663 | 4.672434 | 0.000000 | 23.000000 | miss | miss | yes |
-| 53 | converted | -4.145000 | 2.000000 | 0.000000 | 4.397181 | 5.430066 | 0.000000 | 23.000000 | made | miss | no |
-| 54 | converted | -7.625000 | 2.000000 | 0.000000 | 5.711648 | 7.053297 | 0.000000 | 23.000000 | made | miss | no |
-| 55 | converted | -6.505000 | 2.000000 | 0.000000 | 5.316905 | 6.565830 | 0.000000 | 23.000000 | made | miss | no |
-| 56 | converted | -1.825000 | 2.000000 | 0.000000 | 3.731603 | 4.608146 | 0.000000 | 23.000000 | miss | miss | yes |
-| 57 | converted | -6.185000 | 2.000000 | 0.000000 | 5.199378 | 6.420697 | 0.000000 | 23.000000 | miss | miss | yes |
-| 58 | converted | -4.745000 | 2.000000 | 0.000000 | 4.642277 | 5.732735 | 0.000000 | 23.000000 | made | miss | no |
-| 59 | converted | -5.965000 | 2.000000 | 0.000000 | 5.117281 | 6.319316 | 0.000000 | 23.000000 | made | miss | no |
-| 60 | converted | -3.955000 | 2.000000 | 0.000000 | 4.318447 | 5.332837 | 0.000000 | 23.000000 | miss | miss | yes |
-| 61 | converted | -6.415000 | 2.000000 | 0.000000 | 5.284073 | 6.525287 | 0.000000 | 23.000000 | miss | miss | yes |
-| 62 | converted | -6.925000 | 2.000000 | 0.000000 | 5.467873 | 6.752260 | 0.000000 | 23.000000 | miss | miss | yes |
-| 63 | converted | -6.445000 | 2.000000 | 0.000000 | 5.295036 | 6.538825 | 0.000000 | 23.000000 | miss | miss | yes |
-| 64 | converted | -5.165000 | 2.000000 | 0.000000 | 4.809574 | 5.939329 | 0.000000 | 23.000000 | miss | miss | yes |
-| 65 | converted | -1.685000 | 2.000000 | 0.000000 | 3.850574 | 4.755063 | 0.000000 | 23.000000 | miss | miss | yes |
-| 66 | converted | -6.355000 | 2.000000 | 0.000000 | 5.262089 | 6.498139 | 0.000000 | 23.000000 | miss | miss | yes |
-| 67 | converted | -7.455000 | 2.000000 | 0.000000 | 5.653311 | 6.981258 | 0.000000 | 23.000000 | made | miss | no |
-| 68 | converted | -3.485000 | 2.000000 | 0.000000 | 4.123220 | 5.091753 | 0.000000 | 23.000000 | made | miss | no |
-| 69 | converted | -7.065000 | 2.000000 | 0.000000 | 5.517394 | 6.813414 | 0.000000 | 23.000000 | miss | miss | yes |
-| 70 | converted | -5.265000 | 2.000000 | 0.000000 | 4.848830 | 5.987807 | 0.000000 | 23.000000 | miss | miss | yes |
-| 71 | converted | -5.725000 | 2.000000 | 0.000000 | 5.026490 | 6.207198 | 0.000000 | 23.000000 | made | miss | no |
-| 72 | converted | -7.155000 | 2.000000 | 0.000000 | 5.549022 | 6.852472 | 0.000000 | 23.000000 | made | miss | no |
-| 73 | converted | -7.425000 | 2.000000 | 0.000000 | 5.642960 | 6.968475 | 0.000000 | 23.000000 | made | miss | no |
-| 74 | converted | -4.805000 | 2.000000 | 0.000000 | 4.666410 | 5.762536 | 0.000000 | 23.000000 | miss | miss | yes |
-| 75 | converted | -3.975000 | 2.000000 | 0.000000 | 4.326750 | 5.343092 | 0.000000 | 23.000000 | miss | miss | yes |
-| 76 | converted | -2.515000 | 2.000000 | 0.000000 | 3.755511 | 4.637670 | 0.000000 | 23.000000 | made | miss | no |
-| 77 | converted | -3.955000 | 2.000000 | 0.000000 | 4.318447 | 5.332837 | 0.000000 | 23.000000 | made | miss | no |
-| 78 | converted | -5.315000 | 2.000000 | 0.000000 | 4.868374 | 6.011941 | 0.000000 | 23.000000 | made | miss | no |
-| 79 | converted | -3.425000 | 2.000000 | 0.000000 | 4.098449 | 5.061164 | 0.000000 | 23.000000 | made | miss | no |
-| 80 | converted | -3.105000 | 2.000000 | 0.000000 | 3.968436 | 4.900610 | 0.000000 | 23.000000 | made | miss | no |
-| 81 | converted | -2.935000 | 2.000000 | 0.000000 | 3.901941 | 4.818496 | 0.000000 | 23.000000 | miss | miss | yes |
-| 82 | converted | -7.595000 | 2.000000 | 0.000000 | 5.701392 | 7.040633 | 0.000000 | 23.000000 | miss | miss | yes |
-| 83 | converted | -1.925000 | 2.000000 | 0.000000 | 3.692934 | 4.560394 | 0.000000 | 23.000000 | made | miss | no |
-| 84 | converted | -1.605000 | 2.000000 | 0.000000 | 3.978081 | 4.912521 | 0.000000 | 23.000000 | made | miss | no |
-| 85 | converted | -7.225000 | 2.000000 | 0.000000 | 5.573512 | 6.882714 | 0.000000 | 23.000000 | made | miss | no |
-| 86 | converted | -4.905000 | 2.000000 | 0.000000 | 4.706462 | 5.811996 | 0.000000 | 23.000000 | made | miss | no |
-| 87 | converted | -5.655000 | 2.000000 | 0.000000 | 4.999765 | 6.174195 | 0.000000 | 23.000000 | miss | miss | yes |
-| 88 | converted | -3.115000 | 2.000000 | 0.000000 | 3.972420 | 4.905530 | 0.000000 | 23.000000 | miss | miss | yes |
-| 89 | converted | -2.355000 | 2.000000 | 0.000000 | 3.712638 | 4.584726 | 0.000000 | 23.000000 | miss | miss | yes |
-| 90 | converted | -2.275000 | 2.000000 | 0.000000 | 3.695895 | 4.564050 | 0.000000 | 23.000000 | miss | miss | yes |
-| 91 | converted | -5.715000 | 2.000000 | 0.000000 | 5.022679 | 6.202492 | 0.000000 | 23.000000 | made | miss | no |
-| 92 | converted | -3.715000 | 2.000000 | 0.000000 | 4.218662 | 5.209614 | 0.000000 | 23.000000 | miss | miss | yes |
-| 93 | converted | -6.895000 | 2.000000 | 0.000000 | 5.457210 | 6.739093 | 0.000000 | 23.000000 | made | miss | no |
-| 94 | converted | -4.675000 | 2.000000 | 0.000000 | 4.614028 | 5.697850 | 0.000000 | 23.000000 | miss | miss | yes |
-| 95 | converted | -7.625000 | 2.000000 | 0.000000 | 5.711648 | 7.053297 | 0.000000 | 23.000000 | miss | miss | yes |
-| 96 | converted | -1.925000 | 2.000000 | 0.000000 | 3.692934 | 4.560394 | 0.000000 | 23.000000 | miss | miss | yes |
-| 97 | converted | -2.545000 | 2.000000 | 0.000000 | 3.764626 | 4.648926 | 0.000000 | 23.000000 | miss | miss | yes |
-| 98 | converted | -4.675000 | 2.000000 | 0.000000 | 4.614028 | 5.697850 | 0.000000 | 23.000000 | miss | miss | yes |
-| 99 | converted | -7.165000 | 2.000000 | 0.000000 | 5.552527 | 6.856799 | 0.000000 | 23.000000 | made | miss | no |
-| 100 | converted | -5.765000 | 2.000000 | 0.000000 | 5.041712 | 6.225996 | 0.000000 | 23.000000 | miss | miss | yes |
-| 101 | converted | -3.485000 | 2.000000 | 0.000000 | 4.123220 | 5.091753 | 0.000000 | 23.000000 | made | miss | no |
-| 102 | converted | -7.535000 | 2.000000 | 0.000000 | 5.680831 | 7.015242 | 0.000000 | 23.000000 | made | miss | no |
-| 103 | converted | -2.415000 | 2.000000 | 0.000000 | 3.727440 | 4.603005 | 0.000000 | 23.000000 | miss | miss | yes |
-| 104 | converted | -3.195000 | 2.000000 | 0.000000 | 4.004518 | 4.945168 | 0.000000 | 23.000000 | made | miss | no |
-| 105 | converted | -6.625000 | 2.000000 | 0.000000 | 5.360413 | 6.619559 | 0.000000 | 23.000000 | made | miss | no |
-| 106 | converted | -2.425000 | 2.000000 | 0.000000 | 3.730068 | 4.606251 | 0.000000 | 23.000000 | made | miss | no |
-| 107 | converted | -6.405000 | 2.000000 | 0.000000 | 5.280414 | 6.520769 | 0.000000 | 23.000000 | miss | miss | yes |
-| 108 | converted | -2.935000 | 2.000000 | 0.000000 | 3.901941 | 4.818496 | 0.000000 | 23.000000 | made | miss | no |
-| 109 | converted | -4.865000 | 2.000000 | 0.000000 | 4.690467 | 5.792244 | 0.000000 | 23.000000 | made | miss | no |
-| 110 | converted | -4.645000 | 2.000000 | 0.000000 | 4.601891 | 5.682862 | 0.000000 | 23.000000 | made | miss | no |
-| 111 | converted | -5.685000 | 2.000000 | 0.000000 | 5.011232 | 6.188356 | 0.000000 | 23.000000 | made | miss | no |
-| 112 | converted | -6.335000 | 2.000000 | 0.000000 | 5.254744 | 6.489068 | 0.000000 | 23.000000 | miss | miss | yes |
-| 113 | converted | -2.275000 | 2.000000 | 0.000000 | 3.695895 | 4.564050 | 0.000000 | 23.000000 | made | miss | no |
-| 114 | converted | -6.305000 | 2.000000 | 0.000000 | 5.243710 | 6.475442 | 0.000000 | 23.000000 | made | miss | no |
-| 115 | converted | -4.295000 | 2.000000 | 0.000000 | 4.459029 | 5.506442 | 0.000000 | 23.000000 | made | miss | no |
-| 116 | converted | -2.555000 | 2.000000 | 0.000000 | 3.767727 | 4.652755 | 0.000000 | 23.000000 | made | miss | no |
-| 117 | converted | -4.235000 | 2.000000 | 0.000000 | 4.434329 | 5.475940 | 0.000000 | 23.000000 | made | miss | no |
-| 118 | converted | -3.715000 | 2.000000 | 0.000000 | 4.218662 | 5.209614 | 0.000000 | 23.000000 | made | miss | no |
-| 119 | converted | -1.925000 | 2.000000 | 0.000000 | 3.692934 | 4.560394 | 0.000000 | 23.000000 | miss | miss | yes |
-| 120 | converted | -5.285000 | 2.000000 | 0.000000 | 4.856654 | 5.997469 | 0.000000 | 23.000000 | miss | miss | yes |
-| 121 | converted | -4.305000 | 2.000000 | 0.000000 | 4.463141 | 5.511520 | 0.000000 | 23.000000 | miss | miss | yes |
-| 122 | converted | -7.355000 | 2.000000 | 0.000000 | 5.618741 | 6.938567 | 0.000000 | 23.000000 | miss | miss | yes |
-| 123 | converted | -6.065000 | 2.000000 | 0.000000 | 5.154730 | 6.365562 | 0.000000 | 23.000000 | made | miss | no |
-| 124 | converted | -3.185000 | 2.000000 | 0.000000 | 4.000485 | 4.940188 | 0.000000 | 23.000000 | made | miss | no |
-| 125 | converted | -5.525000 | 2.000000 | 0.000000 | 4.949837 | 6.112540 | 0.000000 | 23.000000 | made | miss | no |
-| 126 | converted | -7.255000 | 2.000000 | 0.000000 | 5.583978 | 6.895639 | 0.000000 | 23.000000 | miss | miss | yes |
-| 127 | converted | -7.195000 | 2.000000 | 0.000000 | 5.563028 | 6.869768 | 0.000000 | 23.000000 | miss | miss | yes |
-| 128 | converted | -6.975000 | 2.000000 | 0.000000 | 5.485604 | 6.774157 | 0.000000 | 23.000000 | miss | miss | yes |
-| 129 | converted | -2.745000 | 2.000000 | 0.000000 | 3.831508 | 4.731518 | 0.000000 | 23.000000 | miss | miss | yes |
-| 130 | converted | -5.755000 | 2.000000 | 0.000000 | 5.037910 | 6.221300 | 0.000000 | 23.000000 | miss | miss | yes |
-| 131 | converted | -4.955000 | 2.000000 | 0.000000 | 4.726407 | 5.836626 | 0.000000 | 23.000000 | miss | miss | yes |
-| 132 | converted | -2.215000 | 2.000000 | 0.000000 | 3.686076 | 4.551925 | 0.000000 | 23.000000 | miss | miss | yes |
-| 133 | converted | -6.205000 | 2.000000 | 0.000000 | 5.206788 | 6.429848 | 0.000000 | 23.000000 | miss | miss | yes |
-| 134 | converted | -5.115000 | 2.000000 | 0.000000 | 4.789861 | 5.914986 | 0.000000 | 23.000000 | miss | miss | yes |
-| 135 | converted | -3.955000 | 2.000000 | 0.000000 | 4.318447 | 5.332837 | 0.000000 | 23.000000 | miss | miss | yes |
-| 136 | converted | -7.625000 | 2.000000 | 0.000000 | 5.711648 | 7.053297 | 0.000000 | 23.000000 | made | miss | no |
-| 137 | converted | -1.835000 | 2.000000 | 0.000000 | 3.726399 | 4.601719 | 0.000000 | 23.000000 | made | miss | no |
-| 138 | converted | -3.425000 | 2.000000 | 0.000000 | 4.098449 | 5.061164 | 0.000000 | 23.000000 | made | miss | no |
-| 139 | converted | -5.765000 | 2.000000 | 0.000000 | 5.041712 | 6.225996 | 0.000000 | 23.000000 | miss | miss | yes |
-| 140 | converted | -2.305000 | 2.000000 | 0.000000 | 3.701728 | 4.571253 | 0.000000 | 23.000000 | miss | miss | yes |
-| 141 | converted | -3.175000 | 2.000000 | 0.000000 | 3.996458 | 4.935215 | 0.000000 | 23.000000 | miss | miss | yes |
-| 142 | converted | -4.765000 | 2.000000 | 0.000000 | 4.650330 | 5.742679 | 0.000000 | 23.000000 | made | miss | no |
-| 143 | converted | -6.275000 | 2.000000 | 0.000000 | 5.232656 | 6.461792 | 0.000000 | 23.000000 | miss | miss | yes |
-| 144 | converted | -5.875000 | 2.000000 | 0.000000 | 5.083386 | 6.277459 | 0.000000 | 23.000000 | miss | miss | yes |
-| 145 | converted | -1.535000 | 2.000000 | 0.000000 | 4.154060 | 5.129836 | 0.000000 | 23.000000 | miss | miss | yes |
-| 146 | converted | -5.455000 | 2.000000 | 0.000000 | 4.922794 | 6.079144 | 0.000000 | 23.000000 | miss | miss | yes |
-| 147 | converted | -5.925000 | 2.000000 | 0.000000 | 5.102239 | 6.300740 | 0.000000 | 23.000000 | made | miss | no |
-| 148 | converted | -6.495000 | 2.000000 | 0.000000 | 5.313265 | 6.561336 | 0.000000 | 23.000000 | miss | miss | yes |
-| 149 | converted | -2.825000 | 2.000000 | 0.000000 | 3.860533 | 4.767361 | 0.000000 | 23.000000 | miss | miss | yes |
-| 150 | converted | -3.895000 | 2.000000 | 0.000000 | 4.293519 | 5.302054 | 0.000000 | 23.000000 | made | miss | no |
-| 151 | converted | -5.375000 | 2.000000 | 0.000000 | 4.891751 | 6.040810 | 0.000000 | 23.000000 | miss | miss | yes |
-| 152 | converted | -3.235000 | 2.000000 | 0.000000 | 4.020700 | 4.965151 | 0.000000 | 23.000000 | made | miss | no |
-| 153 | converted | -5.615000 | 2.000000 | 0.000000 | 4.984443 | 6.155275 | 0.000000 | 23.000000 | miss | miss | yes |
-| 154 | converted | -7.655000 | 2.000000 | 0.000000 | 5.721886 | 7.065941 | 0.000000 | 23.000000 | miss | miss | yes |
-| 155 | converted | -4.155000 | 2.000000 | 0.000000 | 4.401314 | 5.435170 | 0.000000 | 23.000000 | made | miss | no |
-| 156 | converted | -3.565000 | 2.000000 | 0.000000 | 4.156351 | 5.132666 | 0.000000 | 23.000000 | made | miss | no |
-| 157 | converted | -3.105000 | 2.000000 | 0.000000 | 3.968436 | 4.900610 | 0.000000 | 23.000000 | made | miss | no |
-| 158 | converted | -2.145000 | 2.000000 | 0.000000 | 3.678307 | 4.542331 | 0.000000 | 23.000000 | miss | miss | yes |
-| 159 | converted | -6.835000 | 2.000000 | 0.000000 | 5.435829 | 6.712690 | 0.000000 | 23.000000 | made | miss | no |
-| 160 | converted | -5.465000 | 2.000000 | 0.000000 | 4.926664 | 6.083924 | 0.000000 | 23.000000 | miss | miss | yes |
-| 161 | converted | -1.565000 | 2.000000 | 0.000000 | 4.068986 | 5.024779 | 0.000000 | 23.000000 | made | miss | no |
-| 162 | converted | -3.365000 | 2.000000 | 0.000000 | 4.073767 | 5.030683 | 0.000000 | 23.000000 | made | miss | no |
-| 163 | converted | -2.035000 | 2.000000 | 0.000000 | 3.676571 | 4.540187 | 0.000000 | 23.000000 | miss | miss | yes |
-| 164 | converted | -5.355000 | 2.000000 | 0.000000 | 4.883968 | 6.031198 | 0.000000 | 23.000000 | miss | miss | yes |
-| 165 | converted | -7.805000 | 2.000000 | 0.000000 | 5.772833 | 7.128855 | 0.000000 | 23.000000 | miss | miss | yes |
-| 166 | converted | -1.795000 | 2.000000 | 0.000000 | 3.749377 | 4.630095 | 0.000000 | 23.000000 | miss | miss | yes |
-| 167 | converted | -7.635000 | 2.000000 | 0.000000 | 5.715062 | 7.057514 | 0.000000 | 23.000000 | made | miss | no |
-| 168 | converted | -2.915000 | 2.000000 | 0.000000 | 3.894302 | 4.809062 | 0.000000 | 23.000000 | made | miss | no |
-| 169 | converted | -6.065000 | 2.000000 | 0.000000 | 5.154730 | 6.365562 | 0.000000 | 23.000000 | miss | miss | yes |
-| 170 | converted | -2.805000 | 2.000000 | 0.000000 | 3.853181 | 4.758282 | 0.000000 | 23.000000 | miss | miss | yes |
-| 171 | converted | -2.705000 | 2.000000 | 0.000000 | 3.817414 | 4.714114 | 0.000000 | 23.000000 | made | miss | no |
-| 172 | converted | -6.425000 | 2.000000 | 0.000000 | 5.287729 | 6.529802 | 0.000000 | 23.000000 | miss | miss | yes |
-| 173 | converted | -4.245000 | 2.000000 | 0.000000 | 4.438449 | 5.481028 | 0.000000 | 23.000000 | made | miss | no |
-| 174 | converted | -5.105000 | 2.000000 | 0.000000 | 4.785912 | 5.910109 | 0.000000 | 23.000000 | made | miss | no |
-| 175 | converted | -4.705000 | 2.000000 | 0.000000 | 4.626147 | 5.712816 | 0.000000 | 23.000000 | miss | miss | yes |
-| 176 | converted | -3.085000 | 2.000000 | 0.000000 | 3.960489 | 4.890797 | 0.000000 | 23.000000 | made | miss | no |
-| 177 | converted | -5.655000 | 2.000000 | 0.000000 | 4.999765 | 6.174195 | 0.000000 | 23.000000 | miss | miss | yes |
-| 178 | converted | -3.365000 | 2.000000 | 0.000000 | 4.073767 | 5.030683 | 0.000000 | 23.000000 | miss | miss | yes |
-| 179 | converted | -6.185000 | 2.000000 | 0.000000 | 5.199378 | 6.420697 | 0.000000 | 23.000000 | made | miss | no |
-| 180 | converted | -6.815000 | 2.000000 | 0.000000 | 5.428686 | 6.703868 | 0.000000 | 23.000000 | miss | miss | yes |
-| 181 | converted | -6.305000 | 2.000000 | 0.000000 | 5.243710 | 6.475442 | 0.000000 | 23.000000 | miss | miss | yes |
-| 182 | converted | -2.255000 | 2.000000 | 0.000000 | 3.692334 | 4.559653 | 0.000000 | 23.000000 | miss | miss | yes |
-| 183 | converted | -3.705000 | 2.000000 | 0.000000 | 4.214504 | 5.204479 | 0.000000 | 23.000000 | made | miss | no |
-| 184 | converted | -5.245000 | 2.000000 | 0.000000 | 4.840997 | 5.978133 | 0.000000 | 23.000000 | made | miss | no |
-| 185 | converted | -3.035000 | 2.000000 | 0.000000 | 3.940753 | 4.866425 | 0.000000 | 23.000000 | miss | miss | yes |
-| 186 | converted | -4.305000 | 2.000000 | 0.000000 | 4.463141 | 5.511520 | 0.000000 | 23.000000 | miss | miss | yes |
-| 187 | converted | -3.035000 | 2.000000 | 0.000000 | 3.940753 | 4.866425 | 0.000000 | 23.000000 | made | miss | no |
-| 188 | converted | -7.105000 | 2.000000 | 0.000000 | 5.531471 | 6.830797 | 0.000000 | 23.000000 | made | miss | no |
-| 189 | converted | -5.605000 | 2.000000 | 0.000000 | 4.980607 | 6.150538 | 0.000000 | 23.000000 | miss | miss | yes |
-| 190 | converted | -5.885000 | 2.000000 | 0.000000 | 5.087161 | 6.282121 | 0.000000 | 23.000000 | made | miss | no |
-| 191 | converted | -7.725000 | 2.000000 | 0.000000 | 5.745713 | 7.095364 | 0.000000 | 23.000000 | miss | miss | yes |
-| 192 | converted | -2.335000 | 2.000000 | 0.000000 | 3.708106 | 4.579130 | 0.000000 | 23.000000 | miss | miss | yes |
-| 193 | converted | -2.655000 | 2.000000 | 0.000000 | 3.800252 | 4.692921 | 0.000000 | 23.000000 | made | miss | no |
-| 194 | converted | -4.975000 | 2.000000 | 0.000000 | 4.734369 | 5.846459 | 0.000000 | 23.000000 | made | miss | no |
-| 195 | converted | -6.735000 | 2.000000 | 0.000000 | 5.400030 | 6.668482 | 0.000000 | 23.000000 | miss | miss | yes |
-| 196 | converted | -1.975000 | 2.000000 | 0.000000 | 3.682753 | 4.547821 | 0.000000 | 23.000000 | miss | miss | yes |
-| 197 | converted | -4.865000 | 2.000000 | 0.000000 | 4.690467 | 5.792244 | 0.000000 | 23.000000 | made | miss | no |
-| 198 | converted | -6.615000 | 2.000000 | 0.000000 | 5.356799 | 6.615095 | 0.000000 | 23.000000 | miss | miss | yes |
-| 199 | converted | -5.265000 | 2.000000 | 0.000000 | 4.848830 | 5.987807 | 0.000000 | 23.000000 | miss | miss | yes |
-| 200 | converted | -3.695000 | 2.000000 | 0.000000 | 4.210346 | 5.199344 | 0.000000 | 23.000000 | miss | miss | yes |
-| 201 | converted | -3.775000 | 2.000000 | 0.000000 | 4.243617 | 5.240431 | 0.000000 | 23.000000 | made | miss | no |
-| 202 | converted | -7.115000 | 2.000000 | 0.000000 | 5.534985 | 6.835137 | 0.000000 | 23.000000 | miss | miss | yes |
-| 203 | converted | -4.075000 | 2.000000 | 0.000000 | 4.368217 | 5.394299 | 0.000000 | 23.000000 | made | miss | no |
-| 204 | converted | -7.635000 | 2.000000 | 0.000000 | 5.715062 | 7.057514 | 0.000000 | 23.000000 | miss | miss | yes |
-| 205 | converted | -4.965000 | 2.000000 | 0.000000 | 4.730389 | 5.841544 | 0.000000 | 23.000000 | miss | miss | yes |
-| 206 | converted | -7.405000 | 2.000000 | 0.000000 | 5.636050 | 6.959942 | 0.000000 | 23.000000 | made | miss | no |
-| 207 | converted | -7.255000 | 2.000000 | 0.000000 | 5.583978 | 6.895639 | 0.000000 | 23.000000 | made | miss | no |
-| 208 | converted | -6.825000 | 2.000000 | 0.000000 | 5.432258 | 6.708280 | 0.000000 | 23.000000 | made | miss | no |
-| 209 | converted | -2.695000 | 2.000000 | 0.000000 | 3.813939 | 4.709823 | 0.000000 | 23.000000 | miss | miss | yes |
-| 210 | converted | -2.615000 | 2.000000 | 0.000000 | 3.786931 | 4.676471 | 0.000000 | 23.000000 | miss | miss | yes |
-| 211 | converted | -3.765000 | 2.000000 | 0.000000 | 4.239458 | 5.235294 | 0.000000 | 23.000000 | made | miss | no |
-| 212 | converted | -3.405000 | 2.000000 | 0.000000 | 4.090211 | 5.050990 | 0.000000 | 23.000000 | miss | miss | yes |
-| 213 | converted | -2.755000 | 2.000000 | 0.000000 | 3.835077 | 4.735926 | 0.000000 | 23.000000 | made | miss | no |
-| 214 | converted | -3.985000 | 2.000000 | 0.000000 | 4.330901 | 5.348217 | 0.000000 | 23.000000 | made | miss | no |
-| 215 | converted | -1.635000 | 2.000000 | 0.000000 | 3.923083 | 4.844604 | 0.000000 | 23.000000 | miss | miss | yes |
-| 216 | converted | -4.885000 | 2.000000 | 0.000000 | 4.698469 | 5.802125 | 0.000000 | 23.000000 | made | miss | no |
-| 217 | converted | -6.625000 | 2.000000 | 0.000000 | 5.360413 | 6.619559 | 0.000000 | 23.000000 | made | miss | no |
-| 218 | converted | -2.385000 | 2.000000 | 0.000000 | 3.719823 | 4.593599 | 0.000000 | 23.000000 | made | miss | no |
-| 219 | converted | -7.385000 | 2.000000 | 0.000000 | 5.629132 | 6.951399 | 0.000000 | 23.000000 | miss | miss | yes |
-| 220 | converted | -3.605000 | 2.000000 | 0.000000 | 4.172949 | 5.153163 | 0.000000 | 23.000000 | miss | miss | yes |
-| 221 | converted | -3.245000 | 2.000000 | 0.000000 | 4.024757 | 4.970161 | 0.000000 | 23.000000 | made | miss | no |
-| 222 | converted | -3.665000 | 2.000000 | 0.000000 | 4.197874 | 5.183943 | 0.000000 | 23.000000 | miss | miss | yes |
-| 223 | converted | -7.125000 | 2.000000 | 0.000000 | 5.538497 | 6.839474 | 0.000000 | 23.000000 | miss | miss | yes |
-| 224 | converted | -4.075000 | 2.000000 | 0.000000 | 4.368217 | 5.394299 | 0.000000 | 23.000000 | made | miss | no |
-| 225 | converted | -2.245000 | 2.000000 | 0.000000 | 3.690658 | 4.557583 | 0.000000 | 23.000000 | made | miss | no |
-| 226 | converted | -2.455000 | 2.000000 | 0.000000 | 3.738205 | 4.616299 | 0.000000 | 23.000000 | miss | miss | yes |
-| 227 | converted | -4.965000 | 2.000000 | 0.000000 | 4.730389 | 5.841544 | 0.000000 | 23.000000 | made | miss | no |
-| 228 | converted | -7.415000 | 2.000000 | 0.000000 | 5.639506 | 6.964209 | 0.000000 | 23.000000 | made | miss | no |
-| 229 | converted | -3.345000 | 2.000000 | 0.000000 | 4.065562 | 5.020551 | 0.000000 | 23.000000 | made | miss | no |
-| 230 | converted | -5.315000 | 2.000000 | 0.000000 | 4.868374 | 6.011941 | 0.000000 | 23.000000 | made | miss | no |
-| 231 | converted | -6.165000 | 2.000000 | 0.000000 | 5.191958 | 6.411535 | 0.000000 | 23.000000 | made | miss | no |
-| 232 | converted | -7.135000 | 2.000000 | 0.000000 | 5.542007 | 6.843809 | 0.000000 | 23.000000 | made | miss | no |
-| 233 | converted | -1.565000 | 2.000000 | 0.000000 | 4.068986 | 5.024779 | 0.000000 | 23.000000 | miss | miss | yes |
-| 234 | converted | -6.335000 | 2.000000 | 0.000000 | 5.254744 | 6.489068 | 0.000000 | 23.000000 | made | miss | no |
-| 235 | converted | -7.605000 | 2.000000 | 0.000000 | 5.704812 | 7.044857 | 0.000000 | 23.000000 | miss | miss | yes |
-| 236 | converted | -4.355000 | 2.000000 | 0.000000 | 4.483673 | 5.536876 | 0.000000 | 23.000000 | made | miss | no |
-| 237 | converted | -1.825000 | 2.000000 | 0.000000 | 3.731603 | 4.608146 | 0.000000 | 23.000000 | made | miss | no |
-| 238 | converted | -3.225000 | 2.000000 | 0.000000 | 4.016647 | 4.960146 | 0.000000 | 23.000000 | made | miss | no |
-| 239 | converted | -2.895000 | 2.000000 | 0.000000 | 3.886708 | 4.799685 | 0.000000 | 23.000000 | miss | miss | yes |
-| 240 | converted | -4.275000 | 2.000000 | 0.000000 | 4.450802 | 5.496282 | 0.000000 | 23.000000 | made | miss | no |
-| 241 | converted | -6.815000 | 2.000000 | 0.000000 | 5.428686 | 6.703868 | 0.000000 | 23.000000 | miss | miss | yes |
-| 242 | converted | -6.895000 | 2.000000 | 0.000000 | 5.457210 | 6.739093 | 0.000000 | 23.000000 | made | miss | no |
-| 243 | converted | -4.135000 | 2.000000 | 0.000000 | 4.393047 | 5.424961 | 0.000000 | 23.000000 | made | miss | no |
-| 244 | converted | -6.605000 | 2.000000 | 0.000000 | 5.353182 | 6.610630 | 0.000000 | 23.000000 | made | miss | no |
-| 245 | converted | -7.545000 | 2.000000 | 0.000000 | 5.684262 | 7.019479 | 0.000000 | 23.000000 | made | miss | no |
-| 246 | converted | -3.645000 | 2.000000 | 0.000000 | 4.189563 | 5.173679 | 0.000000 | 23.000000 | miss | miss | yes |
-| 247 | converted | -3.125000 | 2.000000 | 0.000000 | 3.976411 | 4.910458 | 0.000000 | 23.000000 | miss | miss | yes |
-| 248 | converted | -1.635000 | 2.000000 | 0.000000 | 3.923083 | 4.844604 | 0.000000 | 23.000000 | made | miss | no |
-| 249 | converted | -3.725000 | 2.000000 | 0.000000 | 4.222821 | 5.214749 | 0.000000 | 23.000000 | made | miss | no |
-| 250 | converted | -4.435000 | 2.000000 | 0.000000 | 4.516439 | 5.577337 | 0.000000 | 23.000000 | miss | miss | yes |
-| 251 | converted | -7.595000 | 2.000000 | 0.000000 | 5.701392 | 7.040633 | 0.000000 | 23.000000 | made | miss | no |
-| 252 | converted | -6.065000 | 2.000000 | 0.000000 | 5.154730 | 6.365562 | 0.000000 | 23.000000 | miss | miss | yes |
-| 253 | converted | -2.695000 | 2.000000 | 0.000000 | 3.813939 | 4.709823 | 0.000000 | 23.000000 | made | miss | no |
-| 254 | converted | -5.735000 | 2.000000 | 0.000000 | 5.030299 | 6.211902 | 0.000000 | 23.000000 | miss | miss | yes |
-| 255 | converted | -6.535000 | 2.000000 | 0.000000 | 5.327810 | 6.579298 | 0.000000 | 23.000000 | made | miss | no |
-| 256 | converted | -7.035000 | 2.000000 | 0.000000 | 5.506815 | 6.800350 | 0.000000 | 23.000000 | made | miss | no |
-| 257 | converted | -7.315000 | 2.000000 | 0.000000 | 5.604859 | 6.921424 | 0.000000 | 23.000000 | miss | miss | yes |
-| 258 | converted | -5.095000 | 2.000000 | 0.000000 | 4.781960 | 5.905229 | 0.000000 | 23.000000 | made | miss | no |
-| 259 | converted | -3.255000 | 2.000000 | 0.000000 | 4.028819 | 4.975178 | 0.000000 | 23.000000 | made | miss | no |
-| 260 | converted | -7.035000 | 2.000000 | 0.000000 | 5.506815 | 6.800350 | 0.000000 | 23.000000 | miss | miss | yes |
-| 261 | converted | -1.805000 | 2.000000 | 0.000000 | 3.743075 | 4.622312 | 0.000000 | 23.000000 | miss | miss | yes |
-| 262 | converted | -7.795000 | 2.000000 | 0.000000 | 5.769449 | 7.124677 | 0.000000 | 23.000000 | made | miss | no |
-| 263 | converted | -2.775000 | 2.000000 | 0.000000 | 3.842269 | 4.744807 | 0.000000 | 23.000000 | made | miss | no |
-| 264 | converted | -2.795000 | 2.000000 | 0.000000 | 3.849528 | 4.753771 | 0.000000 | 23.000000 | miss | miss | yes |
-| 265 | converted | -1.855000 | 2.000000 | 0.000000 | 3.716976 | 4.590083 | 0.000000 | 23.000000 | miss | miss | yes |
-| 266 | converted | -2.635000 | 2.000000 | 0.000000 | 3.793544 | 4.684636 | 0.000000 | 23.000000 | miss | miss | yes |
-| 267 | converted | -3.705000 | 2.000000 | 0.000000 | 4.214504 | 5.204479 | 0.000000 | 23.000000 | made | miss | no |
-| 268 | converted | -4.595000 | 2.000000 | 0.000000 | 4.581622 | 5.657831 | 0.000000 | 23.000000 | miss | miss | yes |
-| 269 | converted | -2.245000 | 2.000000 | 0.000000 | 3.690658 | 4.557583 | 0.000000 | 23.000000 | miss | miss | yes |
-| 270 | converted | -2.165000 | 2.000000 | 0.000000 | 3.680072 | 4.544511 | 0.000000 | 23.000000 | miss | miss | yes |
-| 271 | converted | -6.595000 | 2.000000 | 0.000000 | 5.349564 | 6.606162 | 0.000000 | 23.000000 | miss | miss | yes |
-| 272 | converted | -4.765000 | 2.000000 | 0.000000 | 4.650330 | 5.742679 | 0.000000 | 23.000000 | made | miss | no |
-| 273 | converted | -5.005000 | 2.000000 | 0.000000 | 4.746297 | 5.861189 | 0.000000 | 23.000000 | miss | miss | yes |
-| 274 | converted | -6.425000 | 2.000000 | 0.000000 | 5.287729 | 6.529802 | 0.000000 | 23.000000 | miss | miss | yes |
-| 275 | converted | -7.075000 | 2.000000 | 0.000000 | 5.520916 | 6.817763 | 0.000000 | 23.000000 | made | miss | no |
-| 276 | converted | -2.225000 | 2.000000 | 0.000000 | 3.687527 | 4.553716 | 0.000000 | 23.000000 | miss | miss | yes |
-| 277 | converted | -3.555000 | 2.000000 | 0.000000 | 4.152205 | 5.127546 | 0.000000 | 23.000000 | made | miss | no |
-| 278 | converted | -6.945000 | 2.000000 | 0.000000 | 5.474971 | 6.761026 | 0.000000 | 23.000000 | miss | miss | yes |
-| 279 | converted | -6.025000 | 2.000000 | 0.000000 | 5.139777 | 6.347096 | 0.000000 | 23.000000 | made | miss | no |
-| 280 | converted | -1.845000 | 2.000000 | 0.000000 | 3.721528 | 4.595705 | 0.000000 | 23.000000 | miss | miss | yes |
-| 281 | converted | -3.645000 | 2.000000 | 0.000000 | 4.189563 | 5.173679 | 0.000000 | 23.000000 | made | miss | no |
-| 282 | converted | -3.535000 | 2.000000 | 0.000000 | 4.143915 | 5.117309 | 0.000000 | 23.000000 | made | miss | no |
-| 283 | converted | -5.125000 | 2.000000 | 0.000000 | 4.793808 | 5.919860 | 0.000000 | 23.000000 | miss | miss | yes |
-| 284 | converted | -2.365000 | 2.000000 | 0.000000 | 3.714983 | 4.587622 | 0.000000 | 23.000000 | miss | miss | yes |
-| 285 | converted | -2.595000 | 2.000000 | 0.000000 | 3.780421 | 4.668431 | 0.000000 | 23.000000 | miss | miss | yes |
-| 286 | converted | -3.005000 | 2.000000 | 0.000000 | 3.929011 | 4.851924 | 0.000000 | 23.000000 | miss | miss | yes |
-| 287 | converted | -5.785000 | 2.000000 | 0.000000 | 5.049309 | 6.235378 | 0.000000 | 23.000000 | miss | miss | yes |
-| 288 | converted | -6.555000 | 2.000000 | 0.000000 | 5.335070 | 6.588263 | 0.000000 | 23.000000 | made | miss | no |
-| 289 | converted | -5.135000 | 2.000000 | 0.000000 | 4.797753 | 5.924731 | 0.000000 | 23.000000 | miss | miss | yes |
-| 290 | converted | -2.305000 | 2.000000 | 0.000000 | 3.701728 | 4.571253 | 0.000000 | 23.000000 | miss | miss | yes |
-| 291 | converted | -1.595000 | 2.000000 | 0.000000 | 3.998743 | 4.938036 | 0.000000 | 23.000000 | miss | miss | yes |
-| 292 | converted | -5.395000 | 2.000000 | 0.000000 | 4.899526 | 6.050410 | 0.000000 | 23.000000 | made | miss | no |
-| 293 | converted | -4.975000 | 2.000000 | 0.000000 | 4.734369 | 5.846459 | 0.000000 | 23.000000 | made | miss | no |
-| 294 | converted | -7.715000 | 2.000000 | 0.000000 | 5.742314 | 7.091168 | 0.000000 | 23.000000 | made | miss | no |
-| 295 | converted | -6.685000 | 2.000000 | 0.000000 | 5.382054 | 6.646283 | 0.000000 | 23.000000 | miss | miss | yes |
-| 296 | converted | -5.225000 | 2.000000 | 0.000000 | 4.833155 | 5.968449 | 0.000000 | 23.000000 | miss | miss | yes |
-| 297 | converted | -5.675000 | 2.000000 | 0.000000 | 5.007412 | 6.183639 | 0.000000 | 23.000000 | made | miss | no |
-| 298 | converted | -7.485000 | 2.000000 | 0.000000 | 5.663645 | 6.994019 | 0.000000 | 23.000000 | made | miss | no |
-| 299 | converted | -6.635000 | 2.000000 | 0.000000 | 5.364025 | 6.624019 | 0.000000 | 23.000000 | miss | miss | yes |
-| 300 | converted | -3.305000 | 2.000000 | 0.000000 | 4.049194 | 5.000338 | 0.000000 | 23.000000 | made | miss | no |
-| 301 | selected (assumed) | 14.207000 | 7.718000 | 2.534000 | 0.500000 | 0.200000 | 0.500000 | 23.000000 | made | miss | no |
-| 302 | selected (assumed) | 4.492000 | 10.833000 | 2.559000 | 1.550000 | 0.050000 | 1.525000 | 23.000000 | made | miss | no |
-| 303 | selected (assumed) | 24.363000 | 8.565000 | 2.640000 | 1.750000 | 0.100000 | 5.275000 | 23.000000 | made | miss | no |
-| 304 | selected (assumed) | 5.665000 | 7.731000 | 2.505000 | 1.175000 | 0.450000 | 0.121000 | 23.000000 | made | miss | no |
-| 305 | selected (assumed) | 5.599000 | 7.730000 | 2.593000 | 2.800000 | 0.225000 | 0.131000 | 23.000000 | made | miss | no |
+| 1 | converted | -4.765000 | 2.247400 | 0.000000 | 4.524066 | 5.586756 | 0.000000 | 14.137167 | made | miss | no |
+| 2 | converted | -5.135000 | 2.594600 | 0.000000 | 4.527081 | 5.590479 | 0.000000 | 14.137167 | miss | miss | yes |
+| 3 | converted | -3.685000 | 2.661100 | 0.000000 | 3.811784 | 4.707161 | 0.000000 | 14.137167 | miss | rim-in | no |
+| 4 | converted | -7.445000 | 2.407000 | 0.000000 | 5.505868 | 6.799181 | 0.000000 | 14.137167 | miss | miss | yes |
+| 5 | converted | -5.585000 | 2.767500 | 0.000000 | 4.652360 | 5.745186 | 0.000000 | 14.137167 | made | miss | no |
+| 6 | converted | -2.335000 | 2.541400 | 0.000000 | 3.139457 | 3.876906 | 0.000000 | 14.137167 | made | board-in | yes |
+| 7 | converted | -5.165000 | 2.581300 | 0.000000 | 4.545671 | 5.613436 | 0.000000 | 14.137167 | miss | miss | yes |
+| 8 | converted | -2.385000 | 2.554700 | 0.000000 | 3.158157 | 3.899999 | 0.000000 | 14.137167 | made | board-in | yes |
+| 9 | converted | -2.985000 | 2.540000 | 0.000000 | 3.509365 | 4.333705 | 0.000000 | 14.137167 | miss | miss | yes |
+| 10 | converted | -5.695000 | 2.513400 | 0.000000 | 4.796921 | 5.923704 | 0.000000 | 14.137167 | made | miss | no |
+| 11 | converted | -2.055000 | 2.526700 | 0.000000 | 2.987288 | 3.688993 | 0.000000 | 14.137167 | made | board-in | yes |
+| 12 | converted | -4.195000 | 2.368500 | 0.000000 | 4.211314 | 5.200540 | 0.000000 | 14.137167 | made | miss | no |
+| 13 | converted | -2.815000 | 2.488200 | 0.000000 | 3.451491 | 4.262237 | 0.000000 | 14.137167 | miss | board-in | no |
+| 14 | converted | -2.215000 | 2.247400 | 0.000000 | 3.361524 | 4.151136 | 0.000000 | 14.137167 | miss | miss | yes |
+| 15 | converted | -2.475000 | 2.461600 | 0.000000 | 3.284688 | 4.056252 | 0.000000 | 14.137167 | made | board-in | yes |
+| 16 | converted | -1.555000 | 2.408400 | 0.000000 | 2.893801 | 3.573546 | 0.000000 | 14.137167 | made | miss | no |
+| 17 | converted | -7.805000 | 2.194200 | 0.000000 | 5.705058 | 7.045160 | 0.000000 | 14.137167 | miss | miss | yes |
+| 18 | converted | -5.555000 | 2.568000 | 0.000000 | 4.717158 | 5.825205 | 0.000000 | 14.137167 | miss | miss | yes |
+| 19 | converted | -4.415000 | 2.701000 | 0.000000 | 4.153772 | 5.129481 | 0.000000 | 14.137167 | miss | miss | yes |
+| 20 | converted | -6.095000 | 2.714300 | 0.000000 | 4.883997 | 6.031234 | 0.000000 | 14.137167 | made | miss | no |
+| 21 | converted | -2.225000 | 2.488200 | 0.000000 | 3.121612 | 3.854869 | 0.000000 | 14.137167 | made | board-in | yes |
+| 22 | converted | -2.775000 | 2.448300 | 0.000000 | 3.458485 | 4.270873 | 0.000000 | 14.137167 | made | board-in | yes |
+| 23 | converted | -3.065000 | 2.541400 | 0.000000 | 3.551942 | 4.386283 | 0.000000 | 14.137167 | miss | board-in | no |
+| 24 | converted | -5.395000 | 2.474900 | 0.000000 | 4.688105 | 5.789328 | 0.000000 | 14.137167 | made | miss | no |
+| 25 | converted | -4.755000 | 2.661100 | 0.000000 | 4.329562 | 5.346564 | 0.000000 | 14.137167 | made | miss | no |
+| 26 | converted | -3.045000 | 2.647800 | 0.000000 | 3.475428 | 4.291796 | 0.000000 | 14.137167 | made | miss | no |
+| 27 | converted | -2.065000 | 2.594600 | 0.000000 | 2.930236 | 3.618540 | 0.000000 | 14.137167 | made | board-in | yes |
+| 28 | converted | -1.555000 | 2.421700 | 0.000000 | 2.870490 | 3.544760 | 0.000000 | 14.137167 | miss | miss | yes |
+| 29 | converted | -3.735000 | 2.727600 | 0.000000 | 3.803976 | 4.697520 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 30 | converted | -3.145000 | 2.727600 | 0.000000 | 3.485299 | 4.303985 | 0.000000 | 14.137167 | miss | miss | yes |
+| 31 | converted | -3.735000 | 2.435000 | 0.000000 | 3.958311 | 4.888107 | 0.000000 | 14.137167 | made | miss | no |
+| 32 | converted | -2.755000 | 2.674400 | 0.000000 | 3.292180 | 4.065504 | 0.000000 | 14.137167 | miss | board-in | no |
+| 33 | converted | -5.445000 | 2.408400 | 0.000000 | 4.736802 | 5.849464 | 0.000000 | 14.137167 | miss | miss | yes |
+| 34 | converted | -3.965000 | 2.554700 | 0.000000 | 4.006611 | 4.947752 | 0.000000 | 14.137167 | made | miss | no |
+| 35 | converted | -4.825000 | 2.448300 | 0.000000 | 4.455184 | 5.501694 | 0.000000 | 14.137167 | made | miss | no |
+| 36 | converted | -6.415000 | 2.300600 | 0.000000 | 5.164345 | 6.377436 | 0.000000 | 14.137167 | miss | miss | yes |
+| 37 | converted | -7.485000 | 2.568000 | 0.000000 | 5.466373 | 6.750409 | 0.000000 | 14.137167 | miss | miss | yes |
+| 38 | converted | -3.925000 | 2.581300 | 0.000000 | 3.973486 | 4.906847 | 0.000000 | 14.137167 | miss | miss | yes |
+| 39 | converted | -3.245000 | 2.368500 | 0.000000 | 3.756790 | 4.639249 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 40 | converted | -6.605000 | 2.528100 | 0.000000 | 5.152313 | 6.362577 | 0.000000 | 14.137167 | made | miss | no |
+| 41 | converted | -7.805000 | 2.220800 | 0.000000 | 5.695960 | 7.033924 | 0.000000 | 14.137167 | miss | miss | yes |
+| 42 | converted | -3.415000 | 2.661100 | 0.000000 | 3.670189 | 4.532306 | 0.000000 | 14.137167 | miss | board-in | no |
+| 43 | converted | -1.855000 | 2.754200 | 0.000000 | 2.648338 | 3.270425 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 44 | converted | -4.485000 | 2.501500 | 0.000000 | 4.278185 | 5.283119 | 0.000000 | 14.137167 | miss | miss | yes |
+| 45 | converted | -3.315000 | 2.408400 | 0.000000 | 3.766206 | 4.650877 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 46 | converted | -1.865000 | 2.740900 | 0.000000 | 2.667060 | 3.293545 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 47 | converted | -1.845000 | 2.274000 | 0.000000 | 3.193498 | 3.943641 | 0.000000 | 14.137167 | made | miss | no |
+| 48 | converted | -2.455000 | 2.554700 | 0.000000 | 3.199287 | 3.950791 | 0.000000 | 14.137167 | miss | board-in | no |
+| 49 | converted | -2.315000 | 2.647800 | 0.000000 | 3.043078 | 3.757888 | 0.000000 | 14.137167 | made | board-in | yes |
+| 50 | converted | -7.665000 | 2.274000 | 0.000000 | 5.629141 | 6.951410 | 0.000000 | 14.137167 | miss | miss | yes |
+| 51 | converted | -1.575000 | 2.420300 | 0.000000 | 2.878962 | 3.555222 | 0.000000 | 14.137167 | miss | miss | yes |
+| 52 | converted | -2.605000 | 2.621200 | 0.000000 | 3.239000 | 3.999832 | 0.000000 | 14.137167 | miss | board-in | no |
+| 53 | converted | -4.145000 | 2.526700 | 0.000000 | 4.107399 | 5.072216 | 0.000000 | 14.137167 | made | miss | no |
+| 54 | converted | -7.625000 | 2.727600 | 0.000000 | 5.465588 | 6.749439 | 0.000000 | 14.137167 | made | miss | no |
+| 55 | converted | -6.505000 | 2.340500 | 0.000000 | 5.183280 | 6.400817 | 0.000000 | 14.137167 | made | miss | no |
+| 56 | converted | -1.825000 | 2.421700 | 0.000000 | 2.978710 | 3.678401 | 0.000000 | 14.137167 | miss | miss | yes |
+| 57 | converted | -6.185000 | 2.420300 | 0.000000 | 5.029665 | 6.211119 | 0.000000 | 14.137167 | miss | miss | yes |
+| 58 | converted | -4.745000 | 2.607900 | 0.000000 | 4.348159 | 5.369529 | 0.000000 | 14.137167 | made | miss | no |
+| 59 | converted | -5.965000 | 2.368500 | 0.000000 | 4.963421 | 6.129315 | 0.000000 | 14.137167 | made | miss | no |
+| 60 | converted | -3.955000 | 2.607900 | 0.000000 | 3.974887 | 4.908576 | 0.000000 | 14.137167 | miss | miss | yes |
+| 61 | converted | -6.415000 | 2.526700 | 0.000000 | 5.079468 | 6.272620 | 0.000000 | 14.137167 | miss | miss | yes |
+| 62 | converted | -6.925000 | 2.446900 | 0.000000 | 5.302139 | 6.547596 | 0.000000 | 14.137167 | miss | miss | yes |
+| 63 | converted | -6.445000 | 2.368500 | 0.000000 | 5.149876 | 6.359567 | 0.000000 | 14.137167 | miss | miss | yes |
+| 64 | converted | -5.165000 | 2.541400 | 0.000000 | 4.562413 | 5.634111 | 0.000000 | 14.137167 | miss | miss | yes |
+| 65 | converted | -1.685000 | 2.701000 | 0.000000 | 2.575780 | 3.180823 | 0.000000 | 14.137167 | miss | board-in | no |
+| 66 | converted | -6.355000 | 2.661100 | 0.000000 | 5.007287 | 6.183484 | 0.000000 | 14.137167 | miss | miss | yes |
+| 67 | converted | -7.455000 | 2.367100 | 0.000000 | 5.523071 | 6.820424 | 0.000000 | 14.137167 | made | miss | no |
+| 68 | converted | -3.485000 | 2.486800 | 0.000000 | 3.804695 | 4.698406 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 69 | converted | -7.065000 | 2.488200 | 0.000000 | 5.339613 | 6.593873 | 0.000000 | 14.137167 | miss | miss | yes |
+| 70 | converted | -5.265000 | 2.607900 | 0.000000 | 4.577921 | 5.653261 | 0.000000 | 14.137167 | miss | miss | yes |
+| 71 | converted | -5.725000 | 2.740900 | 0.000000 | 4.721563 | 5.830644 | 0.000000 | 14.137167 | made | miss | no |
+| 72 | converted | -7.155000 | 2.621200 | 0.000000 | 5.327641 | 6.579089 | 0.000000 | 14.137167 | made | miss | no |
+| 73 | converted | -7.425000 | 2.594600 | 0.000000 | 5.435822 | 6.712681 | 0.000000 | 14.137167 | made | miss | no |
+| 74 | converted | -4.805000 | 2.727600 | 0.000000 | 4.324100 | 5.339819 | 0.000000 | 14.137167 | miss | miss | yes |
+| 75 | converted | -3.975000 | 2.607900 | 0.000000 | 3.984744 | 4.920750 | 0.000000 | 14.137167 | miss | miss | yes |
+| 76 | converted | -2.515000 | 2.274000 | 0.000000 | 3.468952 | 4.283800 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 77 | converted | -3.955000 | 2.393700 | 0.000000 | 4.086404 | 5.046288 | 0.000000 | 14.137167 | made | miss | no |
+| 78 | converted | -5.315000 | 2.367100 | 0.000000 | 4.700535 | 5.804678 | 0.000000 | 14.137167 | made | miss | no |
+| 79 | converted | -3.425000 | 2.661100 | 0.000000 | 3.675525 | 4.538895 | 0.000000 | 14.137167 | made | board-in | yes |
+| 80 | converted | -3.105000 | 2.381800 | 0.000000 | 3.677508 | 4.541344 | 0.000000 | 14.137167 | made | board-in | yes |
+| 81 | converted | -2.935000 | 2.247400 | 0.000000 | 3.691643 | 4.558800 | 0.000000 | 14.137167 | miss | board-in | no |
+| 82 | converted | -7.595000 | 2.568000 | 0.000000 | 5.506061 | 6.799419 | 0.000000 | 14.137167 | miss | miss | yes |
+| 83 | converted | -1.925000 | 2.167600 | 0.000000 | 3.379687 | 4.173566 | 0.000000 | 14.137167 | made | miss | no |
+| 84 | converted | -1.605000 | 2.421700 | 0.000000 | 2.886540 | 3.564580 | 0.000000 | 14.137167 | made | miss | no |
+| 85 | converted | -7.225000 | 2.327200 | 0.000000 | 5.454375 | 6.735592 | 0.000000 | 14.137167 | made | miss | no |
+| 86 | converted | -4.905000 | 2.740900 | 0.000000 | 4.364112 | 5.389229 | 0.000000 | 14.137167 | made | miss | no |
+| 87 | converted | -5.655000 | 2.154300 | 0.000000 | 4.930708 | 6.088917 | 0.000000 | 14.137167 | miss | miss | yes |
+| 88 | converted | -3.115000 | 2.461600 | 0.000000 | 3.629629 | 4.482218 | 0.000000 | 14.137167 | miss | board-in | no |
+| 89 | converted | -2.355000 | 2.408400 | 0.000000 | 3.265330 | 4.032347 | 0.000000 | 14.137167 | miss | miss | yes |
+| 90 | converted | -2.275000 | 2.674400 | 0.000000 | 2.997522 | 3.701631 | 0.000000 | 14.137167 | miss | miss | yes |
+| 91 | converted | -5.715000 | 2.381800 | 0.000000 | 4.858189 | 5.999364 | 0.000000 | 14.137167 | made | miss | no |
+| 92 | converted | -3.715000 | 2.435000 | 0.000000 | 3.948570 | 4.876078 | 0.000000 | 14.137167 | miss | miss | yes |
+| 93 | converted | -6.895000 | 2.473500 | 0.000000 | 5.281541 | 6.522160 | 0.000000 | 14.137167 | made | miss | no |
+| 94 | converted | -4.675000 | 2.448300 | 0.000000 | 4.388875 | 5.419810 | 0.000000 | 14.137167 | miss | miss | yes |
+| 95 | converted | -7.625000 | 2.541400 | 0.000000 | 5.525518 | 6.823447 | 0.000000 | 14.137167 | miss | miss | yes |
+| 96 | converted | -1.925000 | 2.395100 | 0.000000 | 3.059183 | 3.777776 | 0.000000 | 14.137167 | miss | miss | yes |
+| 97 | converted | -2.545000 | 2.207500 | 0.000000 | 3.545666 | 4.378533 | 0.000000 | 14.137167 | miss | miss | yes |
+| 98 | converted | -4.675000 | 2.313900 | 0.000000 | 4.452889 | 5.498860 | 0.000000 | 14.137167 | miss | miss | yes |
+| 99 | converted | -7.165000 | 2.554700 | 0.000000 | 5.353778 | 6.611365 | 0.000000 | 14.137167 | made | miss | no |
+| 100 | converted | -5.765000 | 2.368500 | 0.000000 | 4.883757 | 6.030937 | 0.000000 | 14.137167 | miss | miss | yes |
+| 101 | converted | -3.485000 | 2.327200 | 0.000000 | 3.900862 | 4.817164 | 0.000000 | 14.137167 | made | miss | no |
+| 102 | converted | -7.535000 | 2.421700 | 0.000000 | 5.533077 | 6.832781 | 0.000000 | 14.137167 | made | miss | no |
+| 103 | converted | -2.415000 | 2.621200 | 0.000000 | 3.124899 | 3.858929 | 0.000000 | 14.137167 | miss | board-in | no |
+| 104 | converted | -3.195000 | 2.393700 | 0.000000 | 3.715131 | 4.587804 | 0.000000 | 14.137167 | made | miss | no |
+| 105 | converted | -6.625000 | 2.421700 | 0.000000 | 5.198551 | 6.419676 | 0.000000 | 14.137167 | made | miss | no |
+| 106 | converted | -2.425000 | 2.353800 | 0.000000 | 3.351315 | 4.138529 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 107 | converted | -6.405000 | 2.541400 | 0.000000 | 5.070199 | 6.261174 | 0.000000 | 14.137167 | miss | miss | yes |
+| 108 | converted | -2.935000 | 2.340500 | 0.000000 | 3.620876 | 4.471410 | 0.000000 | 14.137167 | made | board-in | yes |
+| 109 | converted | -4.865000 | 2.674400 | 0.000000 | 4.373800 | 5.401193 | 0.000000 | 14.137167 | made | miss | no |
+| 110 | converted | -4.645000 | 2.393700 | 0.000000 | 4.401301 | 5.435154 | 0.000000 | 14.137167 | made | miss | no |
+| 111 | converted | -5.685000 | 2.368500 | 0.000000 | 4.851549 | 5.991163 | 0.000000 | 14.137167 | made | miss | no |
+| 112 | converted | -6.335000 | 2.727600 | 0.000000 | 4.975696 | 6.144473 | 0.000000 | 14.137167 | miss | miss | yes |
+| 113 | converted | -2.275000 | 2.448300 | 0.000000 | 3.185845 | 3.934191 | 0.000000 | 14.137167 | made | board-in | yes |
+| 114 | converted | -6.305000 | 2.514800 | 0.000000 | 5.040941 | 6.225043 | 0.000000 | 14.137167 | made | miss | no |
+| 115 | converted | -4.295000 | 2.740900 | 0.000000 | 4.078262 | 5.036234 | 0.000000 | 14.137167 | made | miss | no |
+| 116 | converted | -2.555000 | 2.661100 | 0.000000 | 3.181357 | 3.928649 | 0.000000 | 14.137167 | made | board-in | yes |
+| 117 | converted | -4.235000 | 2.393700 | 0.000000 | 4.216621 | 5.207094 | 0.000000 | 14.137167 | made | miss | no |
+| 118 | converted | -3.715000 | 2.554700 | 0.000000 | 3.882908 | 4.794992 | 0.000000 | 14.137167 | made | miss | no |
+| 119 | converted | -1.925000 | 2.740900 | 0.000000 | 2.709661 | 3.346153 | 0.000000 | 14.137167 | miss | rim-in | no |
+| 120 | converted | -5.285000 | 2.500100 | 0.000000 | 4.631157 | 5.719002 | 0.000000 | 14.137167 | miss | miss | yes |
+| 121 | converted | -4.305000 | 2.393700 | 0.000000 | 4.248646 | 5.246641 | 0.000000 | 14.137167 | miss | miss | yes |
+| 122 | converted | -7.355000 | 2.687700 | 0.000000 | 5.379679 | 6.643350 | 0.000000 | 14.137167 | miss | miss | yes |
+| 123 | converted | -6.065000 | 2.714300 | 0.000000 | 4.871813 | 6.016188 | 0.000000 | 14.137167 | made | miss | no |
+| 124 | converted | -3.185000 | 2.368500 | 0.000000 | 3.726797 | 4.602211 | 0.000000 | 14.137167 | made | miss | no |
+| 125 | converted | -5.525000 | 2.448300 | 0.000000 | 4.753244 | 5.869768 | 0.000000 | 14.137167 | made | miss | no |
+| 126 | converted | -7.255000 | 2.568000 | 0.000000 | 5.382459 | 6.646784 | 0.000000 | 14.137167 | miss | miss | yes |
+| 127 | converted | -7.195000 | 2.701000 | 0.000000 | 5.316018 | 6.564735 | 0.000000 | 14.137167 | miss | miss | yes |
+| 128 | converted | -6.975000 | 2.528100 | 0.000000 | 5.292320 | 6.535471 | 0.000000 | 14.137167 | miss | miss | yes |
+| 129 | converted | -2.745000 | 2.207500 | 0.000000 | 3.635779 | 4.489813 | 0.000000 | 14.137167 | miss | miss | yes |
+| 130 | converted | -5.755000 | 2.395100 | 0.000000 | 4.868892 | 6.012581 | 0.000000 | 14.137167 | miss | miss | yes |
+| 131 | converted | -4.955000 | 2.740900 | 0.000000 | 4.386730 | 5.417160 | 0.000000 | 14.137167 | miss | miss | yes |
+| 132 | converted | -2.215000 | 2.540000 | 0.000000 | 3.069788 | 3.790873 | 0.000000 | 14.137167 | miss | board-in | no |
+| 133 | converted | -6.205000 | 2.381800 | 0.000000 | 5.052309 | 6.239082 | 0.000000 | 14.137167 | miss | miss | yes |
+| 134 | converted | -5.115000 | 2.501500 | 0.000000 | 4.557836 | 5.628459 | 0.000000 | 14.137167 | miss | miss | yes |
+| 135 | converted | -3.955000 | 2.488200 | 0.000000 | 4.036061 | 4.984120 | 0.000000 | 14.137167 | miss | miss | yes |
+| 136 | converted | -7.625000 | 2.141000 | 0.000000 | 5.661368 | 6.991207 | 0.000000 | 14.137167 | made | miss | no |
+| 137 | converted | -1.835000 | 2.701000 | 0.000000 | 2.681623 | 3.311528 | 0.000000 | 14.137167 | made | board-in | yes |
+| 138 | converted | -3.425000 | 2.661100 | 0.000000 | 3.675525 | 4.538895 | 0.000000 | 14.137167 | made | board-in | yes |
+| 139 | converted | -5.765000 | 2.581300 | 0.000000 | 4.799040 | 5.926320 | 0.000000 | 14.137167 | miss | miss | yes |
+| 140 | converted | -2.305000 | 2.260700 | 0.000000 | 3.385522 | 4.180771 | 0.000000 | 14.137167 | miss | miss | yes |
+| 141 | converted | -3.175000 | 2.754200 | 0.000000 | 3.487407 | 4.306589 | 0.000000 | 14.137167 | miss | miss | yes |
+| 142 | converted | -4.765000 | 2.727600 | 0.000000 | 4.305763 | 5.317174 | 0.000000 | 14.137167 | made | miss | no |
+| 143 | converted | -6.275000 | 2.513400 | 0.000000 | 5.029703 | 6.211166 | 0.000000 | 14.137167 | miss | miss | yes |
+| 144 | converted | -5.875000 | 2.421700 | 0.000000 | 4.906409 | 6.058911 | 0.000000 | 14.137167 | miss | miss | yes |
+| 145 | converted | -1.535000 | 2.381800 | 0.000000 | 2.938672 | 3.628957 | 0.000000 | 14.137167 | miss | miss | yes |
+| 146 | converted | -5.455000 | 2.701000 | 0.000000 | 4.622379 | 5.708162 | 0.000000 | 14.137167 | miss | miss | yes |
+| 147 | converted | -5.925000 | 2.300600 | 0.000000 | 4.975025 | 6.143645 | 0.000000 | 14.137167 | made | miss | no |
+| 148 | converted | -6.495000 | 2.194200 | 0.000000 | 5.235717 | 6.465572 | 0.000000 | 14.137167 | miss | miss | yes |
+| 149 | converted | -2.825000 | 2.380400 | 0.000000 | 3.535146 | 4.365542 | 0.000000 | 14.137167 | miss | board-in | no |
+| 150 | converted | -3.895000 | 2.754200 | 0.000000 | 3.873281 | 4.783104 | 0.000000 | 14.137167 | made | miss | no |
+| 151 | converted | -5.375000 | 2.714300 | 0.000000 | 4.582772 | 5.659252 | 0.000000 | 14.137167 | miss | miss | yes |
+| 152 | converted | -3.235000 | 2.621200 | 0.000000 | 3.595789 | 4.440430 | 0.000000 | 14.137167 | made | miss | no |
+| 153 | converted | -5.615000 | 2.408400 | 0.000000 | 4.806667 | 5.935739 | 0.000000 | 14.137167 | miss | miss | yes |
+| 154 | converted | -7.655000 | 2.727600 | 0.000000 | 5.476463 | 6.762869 | 0.000000 | 14.137167 | miss | miss | yes |
+| 155 | converted | -4.155000 | 2.594600 | 0.000000 | 4.078878 | 5.036995 | 0.000000 | 14.137167 | made | miss | no |
+| 156 | converted | -3.565000 | 2.528100 | 0.000000 | 3.821738 | 4.719453 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 157 | converted | -3.105000 | 2.581300 | 0.000000 | 3.548876 | 4.382497 | 0.000000 | 14.137167 | made | miss | no |
+| 158 | converted | -2.145000 | 2.408400 | 0.000000 | 3.154609 | 3.895617 | 0.000000 | 14.137167 | miss | rim-in | no |
+| 159 | converted | -6.835000 | 2.448300 | 0.000000 | 5.268044 | 6.505492 | 0.000000 | 14.137167 | made | miss | no |
+| 160 | converted | -5.465000 | 2.661100 | 0.000000 | 4.642285 | 5.732744 | 0.000000 | 14.137167 | miss | miss | yes |
+| 161 | converted | -1.565000 | 2.607900 | 0.000000 | 2.600105 | 3.210862 | 0.000000 | 14.137167 | made | miss | no |
+| 162 | converted | -3.365000 | 2.767500 | 0.000000 | 3.586109 | 4.428476 | 0.000000 | 14.137167 | made | miss | no |
+| 163 | converted | -2.035000 | 2.287300 | 0.000000 | 3.240408 | 4.001570 | 0.000000 | 14.137167 | miss | miss | yes |
+| 164 | converted | -5.355000 | 2.554700 | 0.000000 | 4.638229 | 5.727736 | 0.000000 | 14.137167 | miss | miss | yes |
+| 165 | converted | -7.805000 | 2.754200 | 0.000000 | 5.522229 | 6.819385 | 0.000000 | 14.137167 | miss | miss | yes |
+| 166 | converted | -1.795000 | 2.754200 | 0.000000 | 2.604748 | 3.216596 | 0.000000 | 14.137167 | miss | rim-in | no |
+| 167 | converted | -7.635000 | 2.194200 | 0.000000 | 5.646218 | 6.972499 | 0.000000 | 14.137167 | made | miss | no |
+| 168 | converted | -2.915000 | 2.435000 | 0.000000 | 3.542516 | 4.374643 | 0.000000 | 14.137167 | made | board-in | yes |
+| 169 | converted | -6.065000 | 2.194200 | 0.000000 | 5.072970 | 6.264596 | 0.000000 | 14.137167 | miss | miss | yes |
+| 170 | converted | -2.805000 | 2.420300 | 0.000000 | 3.495029 | 4.316002 | 0.000000 | 14.137167 | miss | board-in | no |
+| 171 | converted | -2.705000 | 2.514800 | 0.000000 | 3.371877 | 4.163922 | 0.000000 | 14.137167 | made | board-in | yes |
+| 172 | converted | -6.425000 | 2.234100 | 0.000000 | 5.193898 | 6.413930 | 0.000000 | 14.137167 | miss | miss | yes |
+| 173 | converted | -4.245000 | 2.393700 | 0.000000 | 4.221209 | 5.212759 | 0.000000 | 14.137167 | made | miss | no |
+| 174 | converted | -5.105000 | 2.554700 | 0.000000 | 4.530809 | 5.595083 | 0.000000 | 14.137167 | made | miss | no |
+| 175 | converted | -4.705000 | 2.380400 | 0.000000 | 4.434047 | 5.475592 | 0.000000 | 14.137167 | miss | miss | yes |
+| 176 | converted | -3.085000 | 2.353800 | 0.000000 | 3.686680 | 4.552671 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 177 | converted | -5.655000 | 2.727600 | 0.000000 | 4.697131 | 5.800473 | 0.000000 | 14.137167 | miss | miss | yes |
+| 178 | converted | -3.365000 | 2.287300 | 0.000000 | 3.868863 | 4.777648 | 0.000000 | 14.137167 | miss | miss | yes |
+| 179 | converted | -6.185000 | 2.661100 | 0.000000 | 4.939619 | 6.099921 | 0.000000 | 14.137167 | made | miss | no |
+| 180 | converted | -6.815000 | 2.661100 | 0.000000 | 5.186021 | 6.404203 | 0.000000 | 14.137167 | miss | miss | yes |
+| 181 | converted | -6.305000 | 2.687700 | 0.000000 | 4.977939 | 6.147243 | 0.000000 | 14.137167 | miss | miss | yes |
+| 182 | converted | -2.255000 | 2.607900 | 0.000000 | 3.037074 | 3.750474 | 0.000000 | 14.137167 | miss | board-in | no |
+| 183 | converted | -3.705000 | 2.287300 | 0.000000 | 4.029705 | 4.976271 | 0.000000 | 14.137167 | made | miss | no |
+| 184 | converted | -5.245000 | 2.541400 | 0.000000 | 4.596804 | 5.676581 | 0.000000 | 14.137167 | made | miss | no |
+| 185 | converted | -3.035000 | 2.541400 | 0.000000 | 3.535686 | 4.366209 | 0.000000 | 14.137167 | miss | board-in | no |
+| 186 | converted | -4.305000 | 2.513400 | 0.000000 | 4.189323 | 5.173383 | 0.000000 | 14.137167 | miss | miss | yes |
+| 187 | converted | -3.035000 | 2.154300 | 0.000000 | 3.811374 | 4.706655 | 0.000000 | 14.137167 | made | miss | no |
+| 188 | converted | -7.105000 | 2.607900 | 0.000000 | 5.313510 | 6.561638 | 0.000000 | 14.137167 | made | miss | no |
+| 189 | converted | -5.605000 | 2.513400 | 0.000000 | 4.759817 | 5.877884 | 0.000000 | 14.137167 | miss | miss | yes |
+| 190 | converted | -5.885000 | 2.367100 | 0.000000 | 4.932264 | 6.090839 | 0.000000 | 14.137167 | made | miss | no |
+| 191 | converted | -7.725000 | 2.740900 | 0.000000 | 5.497580 | 6.788946 | 0.000000 | 14.137167 | miss | miss | yes |
+| 192 | converted | -2.335000 | 2.541400 | 0.000000 | 3.139457 | 3.876906 | 0.000000 | 14.137167 | miss | board-in | no |
+| 193 | converted | -2.655000 | 2.740900 | 0.000000 | 3.189506 | 3.938712 | 0.000000 | 14.137167 | made | board-in | yes |
+| 194 | converted | -4.975000 | 2.353800 | 0.000000 | 4.563248 | 5.635142 | 0.000000 | 14.137167 | made | miss | no |
+| 195 | converted | -6.735000 | 2.473500 | 0.000000 | 5.221402 | 6.447894 | 0.000000 | 14.137167 | miss | miss | yes |
+| 196 | converted | -1.975000 | 2.234100 | 0.000000 | 3.290202 | 4.063061 | 0.000000 | 14.137167 | miss | miss | yes |
+| 197 | converted | -4.865000 | 2.300600 | 0.000000 | 4.541073 | 5.607758 | 0.000000 | 14.137167 | made | miss | no |
+| 198 | converted | -6.615000 | 2.647800 | 0.000000 | 5.113719 | 6.314917 | 0.000000 | 14.137167 | miss | miss | yes |
+| 199 | converted | -5.265000 | 2.647800 | 0.000000 | 4.561689 | 5.633216 | 0.000000 | 14.137167 | miss | miss | yes |
+| 200 | converted | -3.695000 | 2.701000 | 0.000000 | 3.796577 | 4.688383 | 0.000000 | 14.137167 | miss | rim-in | no |
+| 201 | converted | -3.775000 | 2.541400 | 0.000000 | 3.919966 | 4.840755 | 0.000000 | 14.137167 | made | miss | no |
+| 202 | converted | -7.115000 | 2.220800 | 0.000000 | 5.452835 | 6.733690 | 0.000000 | 14.137167 | miss | miss | yes |
+| 203 | converted | -4.075000 | 2.687700 | 0.000000 | 3.995253 | 4.933727 | 0.000000 | 14.137167 | made | miss | no |
+| 204 | converted | -7.635000 | 2.528100 | 0.000000 | 5.533451 | 6.833243 | 0.000000 | 14.137167 | miss | miss | yes |
+| 205 | converted | -4.965000 | 2.767500 | 0.000000 | 4.380382 | 5.409321 | 0.000000 | 14.137167 | miss | miss | yes |
+| 206 | converted | -7.405000 | 2.435000 | 0.000000 | 5.481973 | 6.769673 | 0.000000 | 14.137167 | made | miss | no |
+| 207 | converted | -7.255000 | 2.393700 | 0.000000 | 5.441964 | 6.720266 | 0.000000 | 14.137167 | made | miss | no |
+| 208 | converted | -6.825000 | 2.568000 | 0.000000 | 5.222024 | 6.448662 | 0.000000 | 14.137167 | made | miss | no |
+| 209 | converted | -2.695000 | 2.448300 | 0.000000 | 3.415389 | 4.217654 | 0.000000 | 14.137167 | miss | board-in | no |
+| 210 | converted | -2.615000 | 2.513400 | 0.000000 | 3.322439 | 4.102870 | 0.000000 | 14.137167 | miss | board-in | no |
+| 211 | converted | -3.765000 | 2.448300 | 0.000000 | 3.965507 | 4.896994 | 0.000000 | 14.137167 | made | miss | no |
+| 212 | converted | -3.405000 | 2.687700 | 0.000000 | 3.650395 | 4.507862 | 0.000000 | 14.137167 | miss | board-in | no |
+| 213 | converted | -2.755000 | 2.554700 | 0.000000 | 3.371845 | 4.163882 | 0.000000 | 14.137167 | made | miss | no |
+| 214 | converted | -3.985000 | 2.754200 | 0.000000 | 3.918920 | 4.839463 | 0.000000 | 14.137167 | made | miss | no |
+| 215 | converted | -1.635000 | 2.234100 | 0.000000 | 3.243796 | 4.005754 | 0.000000 | 14.137167 | miss | miss | yes |
+| 216 | converted | -4.885000 | 2.460200 | 0.000000 | 4.476096 | 5.527519 | 0.000000 | 14.137167 | made | miss | no |
+| 217 | converted | -6.625000 | 2.754200 | 0.000000 | 5.080776 | 6.274236 | 0.000000 | 14.137167 | made | miss | no |
+| 218 | converted | -2.385000 | 2.687700 | 0.000000 | 3.057480 | 3.775674 | 0.000000 | 14.137167 | made | miss | no |
+| 219 | converted | -7.385000 | 2.541400 | 0.000000 | 5.438902 | 6.716485 | 0.000000 | 14.137167 | miss | miss | yes |
+| 220 | converted | -3.605000 | 2.180900 | 0.000000 | 4.050152 | 5.001521 | 0.000000 | 14.137167 | miss | miss | yes |
+| 221 | converted | -3.245000 | 2.448300 | 0.000000 | 3.705497 | 4.575908 | 0.000000 | 14.137167 | made | miss | no |
+| 222 | converted | -3.665000 | 2.767500 | 0.000000 | 3.747586 | 4.627883 | 0.000000 | 14.137167 | miss | miss | yes |
+| 223 | converted | -7.125000 | 2.594600 | 0.000000 | 5.325445 | 6.576376 | 0.000000 | 14.137167 | miss | miss | yes |
+| 224 | converted | -4.075000 | 2.767500 | 0.000000 | 3.957890 | 4.887588 | 0.000000 | 14.137167 | made | miss | no |
+| 225 | converted | -2.245000 | 2.528100 | 0.000000 | 3.097814 | 3.825482 | 0.000000 | 14.137167 | made | board-in | yes |
+| 226 | converted | -2.455000 | 2.367100 | 0.000000 | 3.354657 | 4.142657 | 0.000000 | 14.137167 | miss | board-in | no |
+| 227 | converted | -4.965000 | 2.647800 | 0.000000 | 4.429887 | 5.470455 | 0.000000 | 14.137167 | made | miss | no |
+| 228 | converted | -7.415000 | 2.581300 | 0.000000 | 5.436568 | 6.713603 | 0.000000 | 14.137167 | made | miss | no |
+| 229 | converted | -3.345000 | 2.554700 | 0.000000 | 3.693055 | 4.560543 | 0.000000 | 14.137167 | made | board-in | yes |
+| 230 | converted | -5.315000 | 2.368500 | 0.000000 | 4.699928 | 5.803928 | 0.000000 | 14.137167 | made | miss | no |
+| 231 | converted | -6.165000 | 2.207500 | 0.000000 | 5.105844 | 6.305193 | 0.000000 | 14.137167 | made | miss | no |
+| 232 | converted | -7.135000 | 2.408400 | 0.000000 | 5.393158 | 6.659995 | 0.000000 | 14.137167 | made | miss | no |
+| 233 | converted | -1.565000 | 2.393700 | 0.000000 | 2.922540 | 3.609036 | 0.000000 | 14.137167 | miss | miss | yes |
+| 234 | converted | -6.335000 | 2.141000 | 0.000000 | 5.197000 | 6.417760 | 0.000000 | 14.137167 | made | miss | no |
+| 235 | converted | -7.605000 | 2.607900 | 0.000000 | 5.496687 | 6.787843 | 0.000000 | 14.137167 | miss | miss | yes |
+| 236 | converted | -4.355000 | 2.408400 | 0.000000 | 4.264041 | 5.265652 | 0.000000 | 14.137167 | made | miss | no |
+| 237 | converted | -1.825000 | 2.594600 | 0.000000 | 2.779164 | 3.431982 | 0.000000 | 14.137167 | made | board-in | yes |
+| 238 | converted | -3.225000 | 2.674400 | 0.000000 | 3.559861 | 4.396062 | 0.000000 | 14.137167 | made | miss | no |
+| 239 | converted | -2.895000 | 2.754200 | 0.000000 | 3.325775 | 4.106990 | 0.000000 | 14.137167 | miss | miss | yes |
+| 240 | converted | -4.275000 | 2.435000 | 0.000000 | 4.214079 | 5.203954 | 0.000000 | 14.137167 | made | miss | no |
+| 241 | converted | -6.815000 | 2.528100 | 0.000000 | 5.232226 | 6.461261 | 0.000000 | 14.137167 | miss | miss | yes |
+| 242 | converted | -6.895000 | 2.421700 | 0.000000 | 5.299936 | 6.544876 | 0.000000 | 14.137167 | made | miss | no |
+| 243 | converted | -4.135000 | 2.381800 | 0.000000 | 4.176746 | 5.157852 | 0.000000 | 14.137167 | made | miss | no |
+| 244 | converted | -6.605000 | 2.380400 | 0.000000 | 5.206204 | 6.429127 | 0.000000 | 14.137167 | made | miss | no |
+| 245 | converted | -7.545000 | 2.528100 | 0.000000 | 5.501180 | 6.793392 | 0.000000 | 14.137167 | made | miss | no |
+| 246 | converted | -3.645000 | 2.594600 | 0.000000 | 3.826143 | 4.724893 | 0.000000 | 14.137167 | miss | board-in | no |
+| 247 | converted | -3.125000 | 2.435000 | 0.000000 | 3.652198 | 4.510088 | 0.000000 | 14.137167 | miss | board-in | no |
+| 248 | converted | -1.635000 | 2.607900 | 0.000000 | 2.644069 | 3.265153 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 249 | converted | -3.725000 | 2.714300 | 0.000000 | 3.805429 | 4.699314 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 250 | converted | -4.435000 | 2.740900 | 0.000000 | 4.145577 | 5.119361 | 0.000000 | 14.137167 | miss | miss | yes |
+| 251 | converted | -7.595000 | 2.581300 | 0.000000 | 5.501724 | 6.794064 | 0.000000 | 14.137167 | made | miss | no |
+| 252 | converted | -6.065000 | 2.368500 | 0.000000 | 5.002807 | 6.177952 | 0.000000 | 14.137167 | miss | miss | yes |
+| 253 | converted | -2.695000 | 2.674400 | 0.000000 | 3.256593 | 4.021558 | 0.000000 | 14.137167 | made | board-in | yes |
+| 254 | converted | -5.735000 | 2.528100 | 0.000000 | 4.807518 | 5.936790 | 0.000000 | 14.137167 | miss | miss | yes |
+| 255 | converted | -6.535000 | 2.687700 | 0.000000 | 5.068635 | 6.259243 | 0.000000 | 14.137167 | made | miss | no |
+| 256 | converted | -7.035000 | 2.541400 | 0.000000 | 5.310102 | 6.557429 | 0.000000 | 14.137167 | made | miss | no |
+| 257 | converted | -7.315000 | 2.220800 | 0.000000 | 5.524345 | 6.821998 | 0.000000 | 14.137167 | miss | miss | yes |
+| 258 | converted | -5.095000 | 2.381800 | 0.000000 | 4.601665 | 5.682583 | 0.000000 | 14.137167 | made | miss | no |
+| 259 | converted | -3.255000 | 2.420300 | 0.000000 | 3.728337 | 4.604113 | 0.000000 | 14.137167 | made | board-in | yes |
+| 260 | converted | -7.035000 | 2.647800 | 0.000000 | 5.273863 | 6.512679 | 0.000000 | 14.137167 | miss | miss | yes |
+| 261 | converted | -1.805000 | 2.287300 | 0.000000 | 3.161995 | 3.904738 | 0.000000 | 14.137167 | miss | miss | yes |
+| 262 | converted | -7.795000 | 2.581300 | 0.000000 | 5.573239 | 6.882377 | 0.000000 | 14.137167 | made | miss | no |
+| 263 | converted | -2.775000 | 2.488200 | 0.000000 | 3.429640 | 4.235252 | 0.000000 | 14.137167 | made | board-in | yes |
+| 264 | converted | -2.795000 | 2.421700 | 0.000000 | 3.488711 | 4.308199 | 0.000000 | 14.137167 | miss | board-in | no |
+| 265 | converted | -1.855000 | 2.473500 | 0.000000 | 2.930400 | 3.618743 | 0.000000 | 14.137167 | miss | miss | yes |
+| 266 | converted | -2.635000 | 2.435000 | 0.000000 | 3.393218 | 4.190275 | 0.000000 | 14.137167 | miss | board-in | no |
+| 267 | converted | -3.705000 | 2.220800 | 0.000000 | 4.070313 | 5.026418 | 0.000000 | 14.137167 | made | miss | no |
+| 268 | converted | -4.595000 | 2.461600 | 0.000000 | 4.346867 | 5.367933 | 0.000000 | 14.137167 | miss | miss | yes |
+| 269 | converted | -2.245000 | 2.488200 | 0.000000 | 3.132981 | 3.868909 | 0.000000 | 14.137167 | miss | board-in | no |
+| 270 | converted | -2.165000 | 2.367100 | 0.000000 | 3.207544 | 3.960986 | 0.000000 | 14.137167 | miss | rim-in | no |
+| 271 | converted | -6.595000 | 2.367100 | 0.000000 | 5.207364 | 6.430559 | 0.000000 | 14.137167 | miss | miss | yes |
+| 272 | converted | -4.765000 | 2.421700 | 0.000000 | 4.441042 | 5.484231 | 0.000000 | 14.137167 | made | miss | no |
+| 273 | converted | -5.005000 | 2.340500 | 0.000000 | 4.582106 | 5.658430 | 0.000000 | 14.137167 | miss | miss | yes |
+| 274 | converted | -6.425000 | 2.461600 | 0.000000 | 5.107338 | 6.307037 | 0.000000 | 14.137167 | miss | miss | yes |
+| 275 | converted | -7.075000 | 2.448300 | 0.000000 | 5.357188 | 6.615576 | 0.000000 | 14.137167 | made | miss | no |
+| 276 | converted | -2.225000 | 2.701000 | 0.000000 | 2.945018 | 3.636794 | 0.000000 | 14.137167 | miss | miss | yes |
+| 277 | converted | -3.555000 | 2.568000 | 0.000000 | 3.794493 | 4.685808 | 0.000000 | 14.137167 | made | rim-in | yes |
+| 278 | converted | -6.945000 | 2.433600 | 0.000000 | 5.314284 | 6.562594 | 0.000000 | 14.137167 | miss | miss | yes |
+| 279 | converted | -6.025000 | 2.327200 | 0.000000 | 5.003527 | 6.178841 | 0.000000 | 14.137167 | made | miss | no |
+| 280 | converted | -1.845000 | 2.568000 | 0.000000 | 2.819506 | 3.481801 | 0.000000 | 14.137167 | miss | board-in | no |
+| 281 | converted | -3.645000 | 2.408400 | 0.000000 | 3.929620 | 4.852677 | 0.000000 | 14.137167 | made | miss | no |
+| 282 | converted | -3.535000 | 2.461600 | 0.000000 | 3.844488 | 4.747547 | 0.000000 | 14.137167 | made | miss | no |
+| 283 | converted | -5.125000 | 2.581300 | 0.000000 | 4.528292 | 5.591975 | 0.000000 | 14.137167 | miss | miss | yes |
+| 284 | converted | -2.365000 | 2.647800 | 0.000000 | 3.074261 | 3.796396 | 0.000000 | 14.137167 | miss | board-in | no |
+| 285 | converted | -2.595000 | 2.461600 | 0.000000 | 3.350759 | 4.137843 | 0.000000 | 14.137167 | miss | board-in | no |
+| 286 | converted | -3.005000 | 2.701000 | 0.000000 | 3.421115 | 4.224725 | 0.000000 | 14.137167 | miss | miss | yes |
+| 287 | converted | -5.785000 | 2.313900 | 0.000000 | 4.914191 | 6.068520 | 0.000000 | 14.137167 | miss | miss | yes |
+| 288 | converted | -6.555000 | 2.381800 | 0.000000 | 5.186750 | 6.405103 | 0.000000 | 14.137167 | made | miss | no |
+| 289 | converted | -5.135000 | 2.528100 | 0.000000 | 4.555097 | 5.625076 | 0.000000 | 14.137167 | miss | miss | yes |
+| 290 | converted | -2.305000 | 2.554700 | 0.000000 | 3.110784 | 3.841499 | 0.000000 | 14.137167 | miss | board-in | no |
+| 291 | converted | -1.595000 | 2.634500 | 0.000000 | 2.586736 | 3.194353 | 0.000000 | 14.137167 | miss | rim-in | no |
+| 292 | converted | -5.395000 | 2.621200 | 0.000000 | 4.628293 | 5.715466 | 0.000000 | 14.137167 | made | miss | no |
+| 293 | converted | -4.975000 | 2.568000 | 0.000000 | 4.468247 | 5.517826 | 0.000000 | 14.137167 | made | miss | no |
+| 294 | converted | -7.715000 | 2.647800 | 0.000000 | 5.523417 | 6.820852 | 0.000000 | 14.137167 | made | miss | no |
+| 295 | converted | -6.685000 | 2.514800 | 0.000000 | 5.187645 | 6.406208 | 0.000000 | 14.137167 | miss | miss | yes |
+| 296 | converted | -5.225000 | 2.767500 | 0.000000 | 4.496419 | 5.552615 | 0.000000 | 14.137167 | miss | miss | yes |
+| 297 | converted | -5.675000 | 2.514800 | 0.000000 | 4.788142 | 5.912863 | 0.000000 | 14.137167 | made | miss | no |
+| 298 | converted | -7.485000 | 2.420300 | 0.000000 | 5.515681 | 6.811299 | 0.000000 | 14.137167 | made | miss | no |
+| 299 | converted | -6.635000 | 2.435000 | 0.000000 | 5.197476 | 6.418348 | 0.000000 | 14.137167 | miss | miss | yes |
+| 300 | converted | -3.305000 | 2.513400 | 0.000000 | 3.696541 | 4.564848 | 0.000000 | 14.137167 | made | board-in | yes |
+| 301 | selected | 14.207000 | 7.718000 | 2.534000 | 0.500000 | 0.200000 | 0.500000 | 14.137167 | made | miss | no |
+| 302 | selected | 4.492000 | 10.833000 | 2.559000 | 1.550000 | 0.050000 | 1.525000 | 14.137167 | made | miss | no |
+| 303 | selected | 24.363000 | 8.565000 | 2.640000 | 1.750000 | 0.100000 | 5.275000 | 14.137167 | made | miss | no |
+| 304 | selected | 5.665000 | 7.731000 | 2.505000 | 1.175000 | 0.450000 | 0.121000 | 14.137167 | made | miss | no |
+| 305 | selected | 5.599000 | 7.730000 | 2.593000 | 2.800000 | 0.225000 | 0.131000 | 14.137167 | made | miss | no |

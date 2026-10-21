@@ -1,13 +1,13 @@
-# COMP1110 Basketball Shot Simulation — Progress Report (Week 6)
-
-> 源文件：`COMP1110_Basketball_Shot_Simulation_Progress.pptx`（同目录有 `.pptx.bak`）。
-> 转换器：内置兜底（fallback.py），版式/图表/图片信息可能缺失。
+<!-- dsh-office-markdown converter=builtin fidelity=limited at=2026-10-21T04:52:51.158Z srcbytes=652428 srchash=b6ddd3dce585a0c7 -->
+<!-- 由 dsh-plugin-office-markdown 内置兜底转换器生成（非 MarkItDown），版式/图表/批注/图片等信息可能缺失，保真度有限。 -->
+> 源文件：`COMP1110_Basketball_Shot_Simulation_Progress.pptx`
+> 转换器：内置兜底（fallback.py）
+> 以下进度与结果按 2026-10-21 的运行结果更新；历史 PPTX 快照可能保留旧数值。
 
 ## Slide 1 — A Physics-Based Basketball Shot Simulation
 
-- COMP1110 Computing and Data Science in Everyday Life, 2026/27 Semester 1.
-- Progress report, week 6.
-- He Runlong, Li Zhenyi, Shao Linjun, Liang Xuanshuo, Chen Yin.
+COMP1110 Computing and Data Science in Everyday Life, 2026/27 Semester 1
+Progress update, 21 October 2026. He Runlong, Li Zhenyi, Shao Linjun, Liang Xuanshuo, Chen Yin
 
 ## Slide 2 — Project at a Glance
 
@@ -23,16 +23,14 @@
 
 ## Slide 4 — Model Concept and Research Question
 
-- Can a simulation with a rigid board, rigid rim and one restitution constant e = 0.7 reproduce swish, board-and-in and miss?
-- Weight, v-squared drag and spin-driven Magnus lift are the only forces modelled.
-
-*（此页只列三结局，Slide 6 却列四结局——疑为兜底转换丢字或讲稿本身两说法并存，原样保留；项目正式口径见 `Specifications.md` 的四结局。）*
+Can a simulation with a rigid board, rigid rim and one restitution constant e = 0.7 reproduce swish, rim-in, board-in and miss?
+Weight, v-squared drag and spin-driven Magnus lift are the only forces modelled.
 
 ## Slide 5 — Method and Tools
 
-- RK4 integration in Python and numpy.
-- Plane-sphere and circle-pair contacts, four labelled outcomes, then a sweep over angle and spin.
-- SportVU plus our own filmed throws supply labels only; every constant stays frozen.
+RK4 integration in Python and numpy.
+Plane-sphere and circle-pair contacts, four labelled outcomes, then a sweep over angle and spin.
+Constants remain frozen during evaluation. Current shot-level validation inputs are assumption-based; empirical validation against SportVU or filmed shots is not complete.
 
 ## Slide 6 — Scope Boundaries
 
@@ -47,27 +45,29 @@
 
 ## Slide 7 — Early Result: Make-Probability Surface
 
-- Grid sweep: 17 angles × 17 spin rates, 200 jittered shots per cell.
-- Peak P(make) = 0.86 near 51 degrees with 23 rad/s of backspin, split into 0.67 swish and 0.14 bounce-in.
-- Mean P climbs from 0.61 without spin to 0.69 at the top of the range.
+Executed sweep: 17 x 17 parameter cells, 100 jittered shots per cell (angle sigma = 1 degree; speed sigma = 0.1 m/s).
+Free-throw peak P(make) = 0.77 at 55 degrees and 45 rad/s: 0.52 swish, 0.15 rim-in, and 0.10 board-in.
+Three-point peak P(make) = 0.79 at 45 degrees and 37.5 rad/s; this peak cell is entirely board-in.
+The sweeps use different nominal speeds (7.5 and 9.5 m/s), so peak probabilities are not a like-for-like difficulty comparison.
 
 ## Slide 8 — Extension: Free Throw versus 3-Point
 
-- Air costs roughly 4 per cent more launch speed at both distances.
-- Aim as if in a vacuum and the ball reaches the rim plane low: 34 cm on a free throw, 82 cm from three-point range.
-- Drag and spin matter more the farther the shot.
+Vacuum aim versus flight with drag and backspin: the ball reaches the rim plane 40.2 cm low on a free throw and 117.4 cm low from three-point range (6.75 m).
+Drag and spin matter more the farther the shot.
 
 ## Slide 9 — Validation Design
 
-- 20 to 30 group-member free throws filmed at 60 fps, plus public NBA SportVU tracking.
-- Frame by frame tracking gives release geometry and the recorded outcome class.
-- We report a single disagreement rate, as a sanity check rather than a statistical claim.
+The pipeline reports agreement, Wilson 95% CI, Cohen's kappa, binary metrics, and a four-class confusion matrix.
+The current 305-row valid_data.csv run gives 152/305 agreement (49.8%; Wilson 95% CI [44.3%, 55.4%]), kappa = 0.000, and a 50.2% majority-class baseline.
+This is not an empirical score: physical inputs are assumption-generated, labels are binary, and five appended initial conditions have unverified axes/units and assigned outcomes. The model predicted every row as a miss.
+Self-consistent dummy data gives 20/20 agreement (100%, kappa = 1.000), which checks the pipeline only.
+Real validation still requires measured release states, backspin, verified coordinate/time conventions, and observed shot outcomes.
 
 ## Slide 10 — Timeline and Current Progress
 
-- Phase 1, literature review and model design, is complete.
-- Phase 2, the RK4 integrator and the collision code, is in progress this week.
-- Extension and footage labels follow in weeks 7 to 9; writing and figures in weeks 10 to 12.
+RK4 flight integration, rigid-contact collision handling, and the 3D/2D simulation paths are implemented.
+All four parameter sweeps and seven result figures have been generated; the six documented 2D demo scenarios reproduce successfully.
+Empirical validation remains pending because shot-level physical inputs and tracking conventions are not verified.
 
 ## Slide 11 — Stated Limitations and Ethics
 
@@ -81,27 +81,8 @@
 
 ## Slide 12 — Deliverables and Next Steps
 
-- Working Python simulation of free-throw outcomes.
-- Make-probability map over release angle and backspin.
-- Disagreement rate against SportVU and our own footage.
-- Free-throw versus 3-point comparison.
-- Written note on an AI-based extension, kept out of scope.
-- Next: finish the collision code, film 20 to 30 throws, widen the sweep.
-
----
-
-## 附录 · 第 6 周快照 vs 仓库当前（2026-10-21）
-
-本文件是第 6 周的状态快照，当时部分数字/说法已过时。现在读这份 deck 时，以下对照表
-给出处置（**快照原文一律保留在上方各页**，本表只做阅读指引，不回改历史内容）：
-
-| 快照说法 | 当前状态（3D 主流程） |
-|---|---|
-| 每格 200 抖动投篮（Slide 7） | `JITTER_SHOTS = 100`（`experiment.py`，每格 100 发） |
-| 峰值 P=0.86 @ 51°、23 rad/s，拆 0.67 swish / 0.14 bounce-in（Slide 7） | 全网格峰值 P≈0.77 @ ≈55°、45 rad/s（星号标记在 `make_probability.png`；51°/23 是 UI/演示预设的单发基准场景，`--check` 6/6 复现） |
-| 真空瞄准偏差 34 cm / 82 cm（Slide 8） | 40.2 cm（罚球）与 117.4 cm（三分 6.75 m），`free_vs_three_drag.png` |
-| 只报告"单一不一致率"（Slide 9/12） | 已实现：一致率 + **Wilson 95% CI** + kappa + 无信息率基线 + precision/recall/specificity/F1/MCC + 4 类混淆矩阵（`validation.py`） |
-| Phase 2 "进行中"，碰撞代码未完（Slide 10/12） | 碰撞层已交付：最近点边/角检测、批量、`detect_all`/多接触有限轮、位置校正（`../Collision.md` / `../collision.py`），且有 `../test_collision.py` |
-| "swish, board-and-in and miss"（Slide 4） | 正式四结局 `swish / rim-in / board-in / miss`（Slide 6 与 `Specifications.md` 一致） |
-| Slide 3/7 的文献（Chen 2020 / Alaways & Hubbard 2002） | `../Report_Draft.md` 引用 Nakai 2018 / Okubo & Hubbard 2006 / Tran & Silverberg 2008 等；与计划书变体差异见两版 plan 的附录 B |
-| 验证数据"尚待拍摄" | `data_validation/` 已暂存 SportVU 风格轨迹（24,073 帧，精度/轴待修）+ 5 条初值 + 原始数据集 300 行 + `data_prep.py` 与 `valid_data.csv`（305 行，**参数为显式假设合成，非实测**；真实验证仍未完成） |
+Working Python simulation, reproducible parameter sweeps, make-probability plots, outcome breakdown, and vacuum-versus-flight comparisons
+Separate 2D velocity-window scans: widest windows are 0.30 m/s for free throw (47.5 degrees, 35 rad/s) and 0.24 m/s for three-point (52.5 degrees, 5 rad/s); these use separate frozen constants
+Automated checks passed: core 13/13, collision 24/24, experiment 2/2, 2D scenarios 6/6, experiment self-check 3/3, plot self-check 7/7, and validation self-check
+Written note on an AI-based extension, kept out of scope
+Next: verify data units, axes, timestamps, and shot linkage; obtain measured release position/velocity, backspin, and outcome labels; then complete empirical validation and calibrate the three-point speed

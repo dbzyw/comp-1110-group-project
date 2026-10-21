@@ -16,7 +16,7 @@
 
 ## Abstract
 
-We build a pure-physics (no machine-learning) simulation of basketball shot outcomes. The ball is treated as a rigid sphere whose flight is integrated with a fourth-order Runge–Kutta scheme under gravity, quadratic air drag, and spin-driven Magnus lift. The backboard is a rigid vertical plane and the rim a rigid ring; contacts use a single restitution coefficient e = 0.7. Given a release point, an initial velocity vector, and a backspin rate, the model classifies the shot as a *swish*, a *rim-in*, a *board-in*, or a *miss*. A Monte-Carlo sweep over release angle and backspin rate yields a make-probability surface whose peak is **P ≈ 0.77 near 55° and 45 rad/s** for a free throw, and **P ≈ 0.80 near 48° and 49 rad/s** at three-point range. Comparing a vacuum-aimed trajectory with the real flight shows the ball arrives **≈ 40.2 cm low** at the rim plane for a free throw, and **≈ 117 cm low** for a three-pointer (6.75 m) — air drag and Magnus lift matter more at longer range. Validation reports agreement with a Wilson 95% confidence interval and Cohen's kappa against chance; final validation against real tracked shots is still in progress.
+We build a pure-physics (no machine-learning) simulation of basketball shot outcomes. The ball is treated as a rigid sphere whose flight is integrated with a fourth-order Runge–Kutta scheme under gravity, quadratic air drag, and spin-driven Magnus lift. The backboard is a rigid vertical plane and the rim a rigid ring; contacts use a single restitution coefficient e = 0.7. Given a release point, an initial velocity vector, and a backspin rate, the model classifies the shot as a *swish*, a *rim-in*, a *board-in*, or a *miss*. The executed Monte-Carlo sweeps (17 × 17 parameter cells, 100 jittered shots per cell) yield a free-throw peak of **P ≈ 0.77 near 55° and 45 rad/s** and a three-point peak of **P ≈ 0.79 near 45° and 37.5 rad/s**; the latter peak consists entirely of board-in outcomes in this model. Comparing a vacuum-aimed trajectory with the real flight shows the ball arrives **≈ 40.2 cm low** at the rim plane for a free throw and **≈ 117.4 cm low** for a three-pointer (6.75 m). The validation pipeline reports agreement with a Wilson 95% confidence interval and Cohen's kappa, but its current 305-row dataset uses assumed release inputs and binary labels, so these metrics are not empirical validation results.
 
 ---
 
@@ -79,9 +79,9 @@ The angle-vs-backspin sweep produces a make-probability surface with a clear int
 
 Repeating the sweep at three-point range (6.75 m, release speed 9.5 m/s, angle grid 36–60°) shifts the optimum and re-shapes the surface:
 
-- **Three-point peak P(make) ≈ 0.80 at ≈ 48° and ≈ 49 rad/s**, versus ≈ 0.77 at ≈ 55° and ≈ 45 rad/s for the free throw.
-- The optimal release angle is ≈ 7° lower (48° vs 55°): the higher launch speed required to cover 6.75 m favours a flatter arc.
-- The optimal backspin is similar (≈ 45–49 rad/s), so strong backspin remains beneficial at range.
+- **Three-point peak P(make) = 0.79 at 45° and 37.5 rad/s**, versus **0.77 at 55° and 45 rad/s** for the free throw.
+- The peak angle is 10° lower (45° vs 55°) and the peak backspin is 7.5 rad/s lower in this run.
+- The three-point peak cell is entirely **board-in** (P(board-in) = 0.79); the free-throw peak is P(swish) = 0.52, P(rim-in) = 0.15, and P(board-in) = 0.10. This dependence on contact history should be interpreted alongside the model's rigid-contact assumptions.
 - Note the two sweeps use different nominal speeds (7.5 m/s free throw, 9.5 m/s three-point), so the peak level is not a like-for-like difficulty comparison; the robust findings are the angle shift and the drag-shortfall growth reported below.
 
 ### 3.2 Vacuum Aim vs. Real Flight
@@ -89,7 +89,7 @@ Repeating the sweep at three-point range (6.75 m, release speed 9.5 m/s, angle g
 A second experiment aims the ball “as if in a vacuum” (only gravity) at the rim centre, then re-runs the same release with drag and backspin (figures: `trajectory_comparison.png`, `trajectory_comparison_three.png`, `free_vs_three_drag.png`). The result is a systematic shortfall relative to the ideal trajectory:
 
 - With air resistance the ball reaches the rim plane **≈ 40.2 cm low** for a free throw.
-- The same comparison at three-point range shows a shortfall of **≈ 117 cm low**.
+- The same comparison at three-point range shows a shortfall of **≈ 117.4 cm low**.
 
 A nominal free throw (7.5 m/s, 51°, 23 rad/s) is classified as a **swish** with a horizontal offset of ≈ 5.5 cm from the rim centre.
 
@@ -103,13 +103,15 @@ The validation pipeline (`validation.py`, read → predict → compare) is imple
 - **Cohen's kappa** and the no-information baseline, plus precision/recall/specificity/F1/MCC for the binary made-vs-miss split.
 - **Four-class confusion matrix** with per-class precision/recall/F1.
 
-The validation design uses 20–30 group-member free throws recorded at 60 fps plus public NBA SportVU tracking. Status as of this revision (2026-10-21): `data_validation/` holds a SportVU-style ball-track extraction (24,073 frame records over 49 events; the export flattened timestamps to one rounded scientific-notation value, so millisecond ordering is lost; source axes/origin are still unconfirmed) and five selected release position/velocity records whose units and shot linkage are not yet documented. The raw 300-row shooting dataset (`Player_ID`, `Distance_from_Basket_m`, binary `Shot_Result`, accelerometer/gyroscope columns, no documented link to the simulation axes) is now stored beside two helper artifacts: `data_prep.py` synthesises `valid_data.csv` (305 rows: 300 converted rows with all release heights defaulted to 2.0 m, straight-on distance mapped to `x = −0.375 − d`, fixed 51° vacuum-solved launch, backspin fixed at 23 rad/s; plus 5 appended rows copied verbatim from the selected initial-conditions file, whose positive `x_m` values contradict the model's shooter-on-−x convention and whose outcomes were set to `made` by instruction). It parses and can be fed to `validation.py` end-to-end, but the resulting agreement measures those synthetic assumptions plus binary labels, not measured release kinematics. Dummy runs confirm the metric chain end-to-end (`python validation.py selfcheck`: agreement = 100%, κ > 0.99 on self-consistent data; uncorrelated labels give ≈ 35% with κ ≈ −0.18, the random baseline). The final empirical agreement numbers against real tracked shots remain to be filled in once release parameters, spin and outcome labels are derived with documented conventions.
+The validation design is 20–30 group-member free throws recorded at 60 fps plus public NBA SportVU tracking. Status as of this revision (2026-10-21): `data_validation/` holds a SportVU-style ball-track extraction (24,073 frame records over 49 events; timestamp precision and source axes/origin remain unconfirmed) and five selected release position/velocity records whose units and shot linkage are undocumented. The 305-row `valid_data.csv` was run through `validation.py`: **152/305 agreement (49.8%; Wilson 95% CI [44.3%, 55.4%]), 153/305 disagreement (50.2%), and κ = 0.000**. The model predicted every row as a miss; the no-information majority-class baseline is 50.2%. This result is not evidence of model performance: the 300 source rows have binary outcomes and assumed/synthetic physical inputs, while five appended rows use unverified initial conditions and assigned `made` labels. The score therefore measures those assumptions and labels, not observed shot kinematics.
+
+The random 20-row placeholder run gave 7/20 agreement (35.0%; Wilson 95% CI [18.1%, 56.7%], κ = −0.182), while the self-consistent dummy self-check gave 20/20 (100%; Wilson 95% CI [83.9%, 100%], κ = 1.000). These are pipeline checks, not validation evidence. Automated checks run for this revision passed: core tests (13/13), collision tests (24/24), experiment tests (2/2), the 2D demo check (6/6), experiment reproducibility self-check (3/3), plot self-check (7/7), and validation self-check. Empirical validation remains incomplete until measured release inputs, backspin, outcome labels, units, and coordinate conventions are documented.
 
 ---
 
 ## 4. Discussion
 
-The central conclusion is that a small physics model can reproduce the qualitative behaviour of a basketball shot without learning from data. The free throw and three-point sweep both show a reasonably well-defined optimum in release angle and backspin, and the drag-and-Magnus effect grows with distance. This is consistent with the problem specification, with the literature on ball flight, and with published optimal free-throw release conditions (Tran & Silverberg, 2008, who locate the optimum band near 50–55°), while remaining deliberately simple enough to run fast and transparently.
+The central conclusion is that a small physics model can generate varied basketball shot outcomes without learning from data. In the executed sweeps, the free-throw peak is near 55° and 45 rad/s, while the three-point peak is near 45° and 37.5 rad/s; the latter is dominated by board-in outcomes. The vacuum-aim comparison also shows a larger shortfall at three-point range. These are simulation results, not claims about empirical accuracy; the chosen nominal speeds differ and the current validation dataset does not contain measured shot kinematics.
 
 The limitations are also explicit. The model assumes rigid board and rim surfaces, fixed restitution e = 0.7, and constant spin during flight; it does not model ball deformation, rim flexing, or board vibration. Real-world shot trajectories are noisier than the deterministic model, and the validation sample is still small. These are not weaknesses in the code alone but deliberate boundaries of the project scope. A separate interactive 2D demonstration (`basketball_shot_2d.py`) deliberately uses a different frozen constant set (m = 0.60 kg, ρ = 1.204, C_d = 0.47, C_L = 0.20, plus tangential restitution 0.85); its results are reported only as a teaching aid and must not be merged numerically with the 3D findings above.
 
@@ -123,7 +125,7 @@ The project uses only group-member footage and public anonymised tracking data. 
 
 ## 6. Conclusion
 
-This project demonstrates that a pure-physics simulation can generate realistic shot outcomes, estimate the effect of backspin and air drag, and explain why longer shots are more sensitive to aerodynamic losses. The current implementation is executable, reproducible, and ready for further validation against real tracked shots. The next step is to import a properly labelled dataset, run the full validation pipeline, and quantify the disagreement rate with Wilson intervals and kappa.
+This project demonstrates that a pure-physics simulation can generate distinct shot outcomes, estimate the effects of backspin and air drag, and show how the vacuum-aim shortfall changes with distance. The implementation and its scan/plot/validation checks are executable and reproducible. Its empirical accuracy has not yet been established; the next step is to import a properly labelled dataset with measured release position, velocity, backspin, and outcome, then report the disagreement rate with Wilson intervals and kappa.
 
 ---
 

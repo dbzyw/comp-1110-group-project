@@ -1,7 +1,7 @@
 # Presentation Outline — Basketball Shot Simulation (8–10 slides)
 
-> 期末汇报 PPT 大纲。每页给出「放哪张图」和「演讲者要点」。8–10 页按 10 分钟演讲
-> 设计，每页约 60 s；Slide 8 的验证仍在进行中，按"in progress"处理。
+> 期末汇报 PPT 大纲。每页给出「放哪张图」和「演讲者要点」。10 页按约 10 分钟演讲
+> 设计，每页约 60 s。仿真扫描已运行；Slide 8 的经验验证仍未完成。
 
 ---
 
@@ -67,10 +67,10 @@
 **图**：`make_probability.png`（罚球）、`make_probability_three.png`（三分球），或并排 `make_probability_comparison.png`；可加 `outcome_breakdown.png` 的缩略。
 
 **演讲**：
-- 扫描：角度 30–70° × 后旋 0–60 rad/s，每格 100 次抖动投篮（σ 角度 1°、速率 0.1 m/s）。
-- 罚球峰值 **P ≈ 0.77，约 55°、45 rad/s**；三分球（6.75 m、9.5 m/s，角度网格 36–60°）峰值 **P ≈ 0.80，约 48°、49 rad/s**（图中峰值附近有星号标记）。
-- 关键结论：最优角度下移约 7°（55° → 48°），后旋仍然要强（≈45–49 rad/s）。
-- 诚实提示（一句）：两套扫描名义速度不同（7.5 vs 9.5 m/s），0.77 与 0.80 不是同难度对比——可比的是"角度下移 + 阻力偏差随距离增大"这两条趋势。
+- 扫描：罚球角度 30–70°、三分角度 36–60°，后旋 0–60 rad/s；两组均为 17 × 17 格、每格 100 次抖动投篮（σ 角度 1°、速率 0.1 m/s）。
+- 罚球峰值 **P = 0.77，55°、45 rad/s**，由 swish 0.52、rim-in 0.15、board-in 0.10 构成。
+- 三分球（6.75 m、9.5 m/s）峰值 **P = 0.79，45°、37.5 rad/s**；该峰值格全部为 board-in。
+- 本次扫描峰值参数的角度相差 10°、后旋相差 7.5 rad/s。两套名义速度不同（7.5 vs 9.5 m/s），命中率不可作为同难度比较；图中星号标示各自峰值。
 
 ---
 
@@ -79,21 +79,20 @@
 **图**：`free_vs_three_drag.png`（罚球 vs 三分球的真空/真实轨迹 + 偏差柱状图）；备选 `trajectory_comparison.png` / `trajectory_comparison_three.png`。
 
 **演讲**：
-- 如果"当作真空"瞄准筐心，真实（有阻力 + 后旋）飞行到达筐面时，**罚球偏低约 40.2 cm，三分球（6.75 m）偏低约 117 cm**，多偏 77 cm。
+- 如果"当作真空"瞄准筐心，真实（有阻力 + 后旋）飞行到达筐面时，**罚球偏低 40.2 cm，三分球（6.75 m）偏低 117.4 cm**，多偏 77.2 cm。
 - 说明阻力与马格努斯力不可忽略，且**距离越远越重要** —— 这是计划书"罚球 vs 三分球"扩展的核心结论。
 
 ---
 
-## Slide 8 — Validation (In Progress)  (~1.5 min)
+## Slide 8 — Validation Pipeline (Empirical Validation Pending)  (~1.5 min)
 
-**图**：暂无最终图；可放验证流程框图（data_prep / extract → shot-level CSV → validation.py），或标注「data import in progress」。
+**图**：验证流程框图（data_prep / extract → shot-level CSV → validation.py），并标注「synthetic inputs; empirical validation pending」。
 
 **演讲**：
-- 验证设计：20–30 个组员罚球 60fps 逐帧追踪 + 公开 NBA SportVU，记录出手几何与真实结局。
-- 报告的不止是单一偏差率：还给出 **Wilson 95% 置信区间**（小样本下必须有区间）+ **Cohen's kappa**（相对偶然一致）+ **四种结局的混淆矩阵与每类 F1**。
-- 举例：随机占位标签下一致率 35%、kappa ≈ −0.18（不比猜好）；20 发的 35% 其 95% 区间约 [18%, 57%] —— 直观说明"一个裸数字不够"。
-- 演示一条命令：`python validation.py --make-dummy --correlated` 再 `python validation.py`（或直接 `python validation.py selfcheck`）→ 自洽 100%、kappa≈1，证明链路正确。
-- **诚实说明：真实数据验证尚未完成**。当前 `data_validation/` 已有 SportVU 风格轨迹抽取（24,073 帧，但时间戳精度在导出时被压平、坐标轴约定未确认）与 5 条出手初值（单位/轴未记录）；`valid_data.csv`（305 行，可被 `validation.py` 直接读取）的出手参数由 `data_prep.py` 按显式假设合成（直线距离 → x = −0.375 − d、固定 51° 真空解速度、统一 23 rad/s 后旋、缺省出手高度 2.0 m），因此它验证的是"假设 + 二元标签"，还不是实测——最终数字待补。
+- 验证实现已报告一致率、**Wilson 95% CI**、Cohen's kappa、MCC、precision/recall/F1 与四类混淆矩阵。
+- 当前 `valid_data.csv` 有 305 行，运行结果为 **152/305 一致（49.8%；Wilson 95% CI [44.3%, 55.4%]），κ = 0.000**；该批输入含假设生成的出手参数、二元标签和 5 条未经核实的初值，模型预测全部为 miss。
+- 所以该数值不是经验准确率；它反映的是当前合成假设及标签。SportVU 导出仍需恢复时间精度并核实坐标系，出手速度、后旋、样本关联和真实结局也尚未齐全。
+- 自洽占位数据的 20/20、100% agreement（κ = 1）只证明验证代码链路能运行，不能证明模型准确。
 
 ---
 
@@ -102,7 +101,7 @@
 **图**：无；列两栏（局限 / 伦理）。
 
 **演讲**：
-- 局限：刚性筐/板、单一 e = 0.7、后旋恒定不衰减、球形变和篮板振动忽略、样本小。
+- 局限：刚性筐/板、单一 e = 0.7、后旋恒定不衰减、球形变和篮板振动忽略；当前没有可用于经验验证的实测 shot-level 输入。
 - 一句补充（选讲）：仓库里另有一套常数不同的 2D 演示模型（0.60 kg / ρ1.204 / C_d 0.47 / 固定 C_L 0.20 / 切向 0.85），只做教学可视化，其数值结论与本报告分开标注。
 - 伦理：拍摄对象是组员、口头同意、视频本地保存、只标结局不标人脸、报告后删除视频；SportVU 数据公开匿名。
 
@@ -113,7 +112,8 @@
 **图**：可放项目文件结构图或两张结果图缩略；也可现场 30 s 双击 `basketball_shot_2d.exe` 演示。
 
 **演讲**：
-- 已交付：可运行的 Python 模拟（RK4 + 碰撞 + 多接触有限轮）、命中概率热力图、结局占比分解图（`outcome_breakdown.png`）、真空 vs 真实轨迹对比、验证框架（Wilson CI / kappa / MCC / 混淆矩阵）、交互式 HTML 轨迹浏览器（`basketball_interactive.html`，浏览器双击即开）、免安装 exe、6 个演示 GIF、2D 必中速度窗口扫描数据。
-- 可复现性：三套 unittest + 各脚本 `--check` / `--selfcheck` 全绿，改代码后可一键回归。
-- 下一步：给真实数据补齐出手参数/backspin/标签完成验证、用文献速度标定三分扫描、写最终报告。
-- 一句收尾："A pure-physics model, no training, three forces, two rigid surfaces — and one number: the disagreement rate."
+- 已交付：RK4 与多接触碰撞模拟、3D 罚球/三分扫描与七张图、真空与真实轨迹对比、验证框架、交互式 HTML、免安装 2D 程序与演示 GIF。
+- 独立的 2D 冻结常数扫描也已完成：最宽速度窗口为罚球 0.30 m/s（47.5° / 35 rad/s）和三分 0.24 m/s（52.5° / 5 rad/s）；不要与 3D 命中概率混为一谈。
+- 本次运行检查通过：核心测试 13/13、碰撞测试 24/24、扫描测试 2/2、2D 场景 6/6、实验复现 3/3、绘图 7/7、验证自检通过。
+- 下一步：确认 tracking 数据来源、坐标/单位/时间戳，采集或恢复逐球的释放状态、后旋和真实结局；随后才报告实测验证，并在可比速度下重跑三分扫描。
+- 一句收尾："A reproducible physics model is in place; empirical agreement still needs measured shot data."

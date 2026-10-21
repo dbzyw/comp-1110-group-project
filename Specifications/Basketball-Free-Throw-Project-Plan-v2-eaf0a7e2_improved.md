@@ -1,10 +1,14 @@
 # COMP1110 Project Plan (v2) — A Physics-Based Basketball Shot Simulation (variant eaf0a7e2)
 
-> 这是 `Basketball-Free-Throw-Project-Plan-v2-eaf0a7e2.md` 的改进版（2026-10-21），
-> 原版（pypdf 兜底转换、行宽破碎、无标题层级）保留在同目录。
+> 这是 `Basketball-Free-Throw-Project-Plan-v2-eaf0a7e2.md` 的改进版（2026-10-21）。
+> 它的原版未被删除、而是被重命名为 `Basketball-Free-Throw-Project-Plan-v2.md`
+> （合并轮 `8906145 „Merging similar files“`，97% 相似、仅 2 行改动）——同目录那份
+> 就是；本文件是它的清洗重排版。
 > 处理原则：只重排版式 + 补回 PDF 文本提取时丢失的撇号/标点，不增删内容事实；
 > 本变体的两处内容差异（§2.2 只列三结局、文献清单不同）**保留原文说法**，
-> 判读见文末附录 B。姊妹变体 `-3ce56a5a.md` 与源 PDF 是引用时的首选依据。
+> 判读见文末附录 B。四结局的正式文本请优先引用 `-3ce56a5a_improved.md`（其 3ce 原件
+> 已被 8906145 从 main 删除、逐字在 `git show 9d843e8:Specifications/...-3ce56a5a.md`）
+> 或源 PDF。
 
 - **Title:** A Physics-Based Basketball Shot Simulation: Release Geometry, Backspin, and Ball Dynamics under Air Drag and Magnus Effects
 - **Course:** COMP1110 Computing and Data Science in Everyday Life, 2026/27 Semester 1
@@ -197,4 +201,8 @@ Roles may shift as the project progresses, but the named owners are the first po
 
 当前实现与 `Report_Draft`、`Specifications(_improved).md` 所引用的四结局与
 Nakai/Okubo 一系与 3ce56a5a 一致——引用计划书时以 **3ce56a5a（及源 PDF）** 为准；
-本文件保留作对照，两份原版均不删。
+本文件保留作对照。合并轮（`8906145 „Merging similar files“`）后的文件现状：本变体的
+原件即同目录的 `Basketball-Free-Throw-Project-Plan-v2.md`（仅改名、内容未修，仍带
+三结局问题句），3ce 原件已从工作区删除、逐字在 git 历史；工作区里两份 hash 名
+计划书只有这两份 *_improved——引用四结局请用 3ce_improved 或源 PDF，不要把仓库那份
+Plan-v2.md 当作"已修正的"计划书。

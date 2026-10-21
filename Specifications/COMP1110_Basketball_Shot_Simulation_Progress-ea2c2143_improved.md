@@ -107,7 +107,7 @@
 | 峰值 P=0.86 @ 51°、23 rad/s，拆 0.67 swish / 0.14 bounce-in（Slide 7） | 全网格峰值 P≈0.77 @ ≈55°、45 rad/s（星号标记在 `make_probability.png`；51°/23 是 UI/演示预设的单发基准场景，`--check` 6/6 复现） |
 | 真空瞄准偏差 34 cm / 82 cm（Slide 8） | 40.2 cm（罚球）与 117.4 cm（三分 6.75 m），`free_vs_three_drag.png` |
 | 只报告"单一不一致率"（Slide 9/12） | 已实现：一致率 + **Wilson 95% CI** + kappa + 无信息率基线 + precision/recall/specificity/F1/MCC + 4 类混淆矩阵（`validation.py`） |
-| Phase 2 "进行中"，碰撞代码未完（Slide 10/12） | 碰撞层已交付：最近点边/角检测、批量、`detect_all`/多接触有限轮、位置校正（`Collision_improved.md` / `collision.py`），且有 `test_collision.py` |
+| Phase 2 "进行中"，碰撞代码未完（Slide 10/12） | 碰撞层已交付：最近点边/角检测、批量、`detect_all`/多接触有限轮、位置校正（`Collision.md`〔改进内容已由 `8906145 „Merging similar files“` 合入原版〕/ `collision.py`），且有 `test_collision.py` |
 | "swish, board-and-in and miss"（Slide 4） | 正式四结局 `swish / rim-in / board-in / miss`（Slide 6 与 `Specifications.md` 一致） |
 | Slide 3/7 的文献（Chen 2020 / Alaways & Hubbard 2002） | `Report_Draft(_improved).md` 引用 Nakai 2018 / Okubo & Hubbard 2006 / Tran & Silverberg 2008 等；与计划书变体差异见两版 plan 的附录 B |
 | 验证数据"尚待拍摄" | `data_validation/` 已暂存 SportVU 风格轨迹（24,073 帧，精度/轴待修）+ 5 条初值 + 原始数据集 300 行 + `data_prep.py` 与 `valid_data.csv`（305 行，**参数为显式假设合成，非实测**；真实验证仍未完成） |

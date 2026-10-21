@@ -1,12 +1,13 @@
 # COMP1110 Project Plan (v2) — A Physics-Based Basketball Shot Simulation
 
-> 这是 `Basketball-Free-Throw-Project-Plan-v2-3ce56a5a.md` 的改进版（2026-10-21），
-> 原版（pypdf 兜底转换、行宽破碎、无标题层级）保留在同目录。
+> 这是 `Basketball-Free-Throw-Project-Plan-v2-3ce56a5a.md` 的改进版（2026-10-21）。
+> 原版的逐字副本现只存在于 git 历史（由 `9d843e8` 引入、在合并轮 `8906145
+> „Merging similar files“` 中从 main 删除；同一源 PDF 的另一转换 `eaf0a7e2`
+> 被重命名为 `Basketball-Free-Throw-Project-Plan-v2.md`，仍在同目录）。
 > 处理原则：只重排版式 + 补回 PDF 文本提取时丢失的撇号/标点，不增删内容事实；
 > PDF（`Basketball-Free-Throw-Project-Plan-v2.pdf`）始终是可引用的原始来源。
-> 姊妹变体 `-eaf0a7e2.md`（同一源 PDF 的另一次转换）在结局数量与文献清单上与此
-> 不一致——两版差异与判定依据见文末附录；正文以本变体（四结局、Okubo & Hubbard）
-> 与源 PDF 为准。
+> 姊妹变体（现名 `Plan-v2.md`）在结局数量与文献清单上与此不一致——两版差异与
+> 判定依据见文末附录；正文以本变体（四结局、Okubo & Hubbard）与源 PDF 为准。
 
 - **Title:** A Physics-Based Basketball Shot Simulation: Release Geometry, Backspin, and Ball Dynamics under Air Drag and Magnus Effects
 - **Course:** COMP1110 Computing and Data Science in Everyday Life, 2026/27 Semester 1
@@ -196,4 +197,9 @@ Roles may shift as the project progresses, but the named owners are the first po
 判定依据：项目当前实现与 `Report_Draft`、`Specifications.md` 引用的都是四结局、
 Nakai/Okubo & Hubbard 一系——与 3ce56a5a 一致；eaf0a7e2 的三结局表述与其余文档矛盾，
 且其替代文献无法与实现互证。引用计划书内容时以 **3ce56a5a（及源 PDF）** 为准，
-eaf0a7e2 仅作对照存档。两份原版文件均保留。
+eaf0a7e2 仅作对照存档。
+
+文件现状（2026-10-21 合并轮后）：3ce 原件已不在 main 工作区，逐字原件可取
+`git show 9d843e8:Specifications/Basketball-Free-Throw-Project-Plan-v2-3ce56a5a.md`；
+仓库里现存的计划书文件名 `Basketball-Free-Throw-Project-Plan-v2.md` 是 **eaf 变体
+改名而来**（三结局问题句版本）——读那份时请以本 improved（四结局版）或源 PDF 互校。

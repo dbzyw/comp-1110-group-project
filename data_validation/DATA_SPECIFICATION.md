@@ -21,6 +21,7 @@ axes before using tracking data with that model.
 | `extract.py` | Python script reading `sample.json` | Extracts ball positions from the first 50 events and writes `extracted_ball_tracks.csv`. The expected JSON file is not present in this folder. |
 | `extracted_ball_tracks.csv` | 24,073 rows; 6 columns; comma-delimited UTF-8 | Ball tracking samples with event, time, shot-clock, and position fields. It does not contain shot labels, release velocities, or spin. |
 | `selected_shot_initial_conditions.csv` | 5 rows; 6 columns; comma-delimited UTF-8 | English-named CSV conversion of the selected position and initial-velocity values from the workbook. It has no shot identifier, outcome, backspin, or documented units for the velocity columns. |
+| `basketball_shooting_dataset.csv` | 300 rows; 20 columns; comma-delimited UTF-8 | Original source dataset copied into this folder. It includes shot result and aggregate/release measurements, but its provenance and some measurement conventions need confirmation before model validation. |
 | `basketball_shots_validation_template.csv` | 300 rows; 9 columns; comma-delimited UTF-8 | Prepared from `C:\Users\yinch\Downloads\basketball_shooting_dataset.csv`. Binary outcomes are mapped to `made`/`miss`; release coordinates, velocity components, and backspin remain blank because they cannot be reliably derived from the source metadata currently available. |
 
 All data tables in this folder use UTF-8 encoding and comma-delimited CSV.
@@ -149,8 +150,8 @@ labels.
 validation header above and has one row for each of the 300 source records.
 Its `shot_id` values (`source_row_0001` through `source_row_0300`) identify
 source data-row positions, not verified shot identifiers. They preserve a
-traceable row-level link to the input file
-`C:\Users\yinch\Downloads\basketball_shooting_dataset.csv`.
+traceable row-level link to `basketball_shooting_dataset.csv`, the unchanged
+source copy now stored alongside the template.
 
 The source's `Shot_Result` values were `0` or `1`; they were mapped to `miss`
 and `made`, respectively. The prepared file contains 148 `made` and 152

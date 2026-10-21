@@ -28,7 +28,13 @@ BACKBOARD_BOTTOM = 2.9
 BACKBOARD_TOP = BACKBOARD_BOTTOM + BACKBOARD_HEIGHT
 BACKBOARD_HALF_WIDTH = BACKBOARD_WIDTH / 2.0
 RIM_CENTER = np.array([-RIM_TO_BOARD, RIM_HEIGHT, 0.0])
-RESTITUTION = 0.7
+BACKBOARD_RESTITUTION = 0.7
+RIM_RESTITUTION = 0.7
+# Backwards-compatible default used by callers that still pass RESTITUTION.
+RESTITUTION = BACKBOARD_RESTITUTION
+# Fraction of tangential velocity retained in the simplified friction model.
+# 1.0 means frictionless contact; 0.0 removes tangential velocity at impact.
+TANGENTIAL_RETENTION = 1.0
 
 
 @dataclass
@@ -121,8 +127,20 @@ def detect_rim(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
 
 def detect_any(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
     """Return a backboard contact first, otherwise a rim contact."""
-    collision = detect_backboard(pos, ball_radius)
-    return collision if collision is not None else detect_rim(pos, ball_radius)
+    collisions = detect_all(pos, ball_radius)
+    return collisions[0] if collisions else None
+
+
+def detect_all(pos, ball_radius: float = BALL_RADIUS) -> list[Collision]:
+    """Return every overlapping contact, in stable backboard-then-rim order."""
+    collisions = []
+    backboard = detect_backboard(pos, ball_radius)
+    rim = detect_rim(pos, ball_radius)
+    if backboard is not None:
+        collisions.append(backboard)
+    if rim is not None:
+        collisions.append(rim)
+    return collisions
 
 
 def detect_backboard_batch(pos, ball_radius: float = BALL_RADIUS):
@@ -181,11 +199,14 @@ def detect_rim_batch(pos, ball_radius: float = BALL_RADIUS):
     return hit, normals, penetration
 
 
-def reflect(vel, normal, e: float = RESTITUTION) -> np.ndarray:
-    """Reflect approaching velocity using restitution e; tangential speed stays.
+def reflect(vel, normal, e: float = RESTITUTION,
+            tangential_retention: float = TANGENTIAL_RETENTION) -> np.ndarray:
+    """Reflect approaching velocity with restitution and simple tangential loss.
 
     With outward unit normal n and incoming normal speed v_n = v·n < 0,
-    v_after = v_before - (1+e) v_n n.  Separating contacts are unchanged.
+    v_after = -e*v_n*n + tangential_retention*v_t, where v_t is the incoming
+    tangential velocity. Separating contacts are unchanged. The retention
+    parameter is a simplified friction control, not a Coulomb friction model.
     """
     velocity = _vector3(vel, "vel")
     normal = _vector3(normal, "normal")
@@ -194,30 +215,125 @@ def reflect(vel, normal, e: float = RESTITUTION) -> np.ndarray:
         raise ValueError("normal must be a unit vector")
     if not np.isfinite(e) or not 0.0 <= e <= 1.0:
         raise ValueError("e must be between 0 and 1")
+    if not np.isfinite(tangential_retention) or not 0.0 <= tangential_retention <= 1.0:
+        raise ValueError("tangential_retention must be between 0 and 1")
 
     normal_speed = float(np.dot(velocity, normal))
     if normal_speed < 0.0:
-        velocity = velocity - (1.0 + e) * normal_speed * normal
+        tangent_velocity = velocity - normal_speed * normal
+        velocity = (-e * normal_speed * normal
+                    + tangential_retention * tangent_velocity)
     return velocity
 
 
 def resolve(pos, vel, collision: Collision, correct_position: bool = True,
-            restitution: float = RESTITUTION):
-    """Apply the frictionless bounce and optionally remove geometric overlap."""
+            restitution: float | None = None,
+            tangential_retention: float = TANGENTIAL_RETENTION):
+    """Apply one contact response and optionally remove geometric overlap."""
     position = _vector3(pos, "pos").copy()
-    velocity = reflect(vel, collision.normal, restitution)
+    if restitution is None:
+        restitution = restitution_for(collision.kind)
+    velocity = reflect(vel, collision.normal, restitution, tangential_retention)
     if correct_position and collision.penetration > 0.0:
         position += collision.normal * collision.penetration
     return position, velocity
 
 
-def _show(title, pos, vel, collision, restitution=RESTITUTION):
+def restitution_for(kind: str) -> float:
+    """Return the configured restitution for a supported contact kind."""
+    if kind == "backboard":
+        return BACKBOARD_RESTITUTION
+    if kind == "rim":
+        return RIM_RESTITUTION
+    raise ValueError(f"unsupported collision kind: {kind}")
+
+
+def resolve_contacts(pos, vel, collisions=None, correct_position: bool = True,
+                     tangential_retention: float = TANGENTIAL_RETENTION,
+                     max_position_iterations: int = 4,
+                     max_velocity_iterations: int = 4,
+                     ball_radius: float = BALL_RADIUS):
+    """Resolve all contacts found at a position using bounded sequential passes.
+
+    Each incoming contact applies its own restitution in stable order. A few
+    sequential passes reduce order bias when two contact normals compete.
+    Position overlap is corrected iteratively. This is a lightweight
+    multi-contact approximation, not a full impulse/contact-manifold solver.
+    """
+    position = _vector3(pos, "pos").copy()
+    velocity = _vector3(vel, "vel").copy()
+    ball_radius = _positive_scalar(ball_radius, "ball_radius")
+    if collisions is None:
+        collisions = detect_all(position, ball_radius)
+    else:
+        collisions = list(collisions)
+    if max_position_iterations < 1:
+        raise ValueError("max_position_iterations must be at least 1")
+    if max_velocity_iterations < 1:
+        raise ValueError("max_velocity_iterations must be at least 1")
+
+    for iteration in range(max_velocity_iterations):
+        any_approaching = False
+        for collision in collisions:
+            normal = _vector3(collision.normal, "collision.normal")
+            if np.dot(velocity, normal) < -1e-10:
+                # Apply material restitution once. Later passes only remove
+                # newly introduced inward velocity, preventing repeated
+                # restitution from artificially adding energy at one contact.
+                restitution = (restitution_for(collision.kind)
+                               if iteration == 0 else 0.0)
+                velocity = reflect(
+                    velocity,
+                    normal,
+                    restitution,
+                    tangential_retention if iteration == 0 else 1.0,
+                )
+                any_approaching = True
+        if not any_approaching:
+            break
+
+    if correct_position:
+        for _ in range(max_position_iterations):
+            current_contacts = detect_all(position, ball_radius)
+            penetrating = [c for c in current_contacts if c.penetration > 1e-10]
+            if not penetrating:
+                break
+            # Try each single-contact projection and keep the one that most
+            # reduces total squared overlap. This avoids oscillating forever
+            # between opposing surfaces when the sphere physically cannot fit.
+            current_error = sum(c.penetration ** 2 for c in penetrating)
+            best_position = position
+            best_error = current_error
+            for contact in penetrating:
+                candidate = position + contact.normal * contact.penetration
+                candidate_contacts = detect_all(candidate, ball_radius)
+                candidate_error = sum(
+                    c.penetration ** 2 for c in candidate_contacts
+                    if c.penetration > 1e-10
+                )
+                if candidate_error + 1e-14 < best_error:
+                    best_position = candidate
+                    best_error = candidate_error
+            if best_error >= current_error - 1e-14:
+                # The remaining overlap is unsatisfiable under the current
+                # idealised geometry (e.g. a ball squeezed between surfaces).
+                break
+            position = best_position
+
+    return position, velocity
+
+
+def _show(title, pos, vel, collision, restitution=None,
+          tangential_retention=TANGENTIAL_RETENTION):
     print(f"\n【{title}】")
     print(f"  碰撞前 pos = {np.asarray(pos)}; vel = {np.asarray(vel)}")
     if collision is None:
         print("  -> 未碰撞")
         return
-    new_pos, new_vel = resolve(pos, vel, collision, restitution=restitution)
+    new_pos, new_vel = resolve(
+        pos, vel, collision, restitution=restitution,
+        tangential_retention=tangential_retention,
+    )
     print(f"  类型={collision.kind}, 法向={collision.normal}, 嵌入深度={collision.penetration:.4f} m")
     print(f"  碰撞后 pos={new_pos}; vel={new_vel}")
 

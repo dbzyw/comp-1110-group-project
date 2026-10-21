@@ -130,7 +130,7 @@ class ResponseTests(unittest.TestCase):
         normal = np.array([1.0, 1.0, 0.0]) / np.sqrt(2.0)
         tangent = np.array([1.0, -1.0, 0.0]) / np.sqrt(2.0)
         incoming = -4.0 * normal + 3.0 * tangent
-        for restitution in (0.0, 0.5, 1.0):
+        for restitution in (0.0, 0.5, 0.7, 1.0):
             with self.subTest(restitution=restitution):
                 outgoing = collision.reflect(incoming, normal, restitution)
                 self.assertAlmostEqual(np.dot(outgoing, normal), 4.0 * restitution)
@@ -140,6 +140,14 @@ class ResponseTests(unittest.TestCase):
         velocity = np.array([0.0, 2.0, 3.0])
         normal = np.array([1.0, 0.0, 0.0])
         np.testing.assert_allclose(collision.reflect(velocity, normal), velocity)
+
+    def test_tangential_retention_models_simple_friction(self):
+        velocity = np.array([5.0, 4.0, 0.0])
+        normal = np.array([-1.0, 0.0, 0.0])
+        outgoing = collision.reflect(
+            velocity, normal, e=0.7, tangential_retention=0.5
+        )
+        np.testing.assert_allclose(outgoing, [-3.5, 2.0, 0.0])
 
     def test_position_correction_can_be_disabled(self):
         position = np.array([-0.05, 3.2, 0.0])
@@ -154,6 +162,82 @@ class ResponseTests(unittest.TestCase):
     def test_invalid_ball_radius_is_rejected(self):
         with self.assertRaises(ValueError):
             collision.detect_rim(collision.RIM_CENTER, ball_radius=0.0)
+
+    def test_separate_surface_restitution_values(self):
+        from unittest.mock import patch
+
+        board_hit = collision.detect_backboard([-0.05, 3.2, 0.0])
+        rim_hit = collision.detect_rim([
+            collision.RIM_CENTER[0] + collision.RIM_RADIUS,
+            collision.RIM_HEIGHT,
+            collision.RIM_CENTER[2],
+        ])
+        with patch.object(collision, "BACKBOARD_RESTITUTION", 0.2), \
+             patch.object(collision, "RIM_RESTITUTION", 0.8):
+            _, board_velocity = collision.resolve(
+                [-0.05, 3.2, 0.0], [5.0, 0.0, 0.0], board_hit
+            )
+            _, rim_velocity = collision.resolve(
+                [collision.RIM_CENTER[0] + collision.RIM_RADIUS,
+                 collision.RIM_HEIGHT, collision.RIM_CENTER[2]],
+                [-5.0, 0.0, 0.0], rim_hit,
+            )
+        self.assertAlmostEqual(board_velocity[0], -1.0)
+        self.assertAlmostEqual(rim_velocity[0], 4.0)
+
+
+class MultiContactTests(unittest.TestCase):
+    def test_detect_all_reports_both_near_board_rim_connection(self):
+        # At the standard ball radius the ball can overlap the nearby board
+        # edge and the frontmost rim point at once.
+        position = [-0.075, 3.05, 0.0]
+        contacts = collision.detect_all(position)
+        self.assertEqual([contact.kind for contact in contacts], ["backboard", "rim"])
+
+    def test_multi_contact_response_is_bounded_and_finite(self):
+        position = np.array([-0.075, 3.05, 0.0])
+        contacts = collision.detect_all(position)
+        corrected, velocity = collision.resolve_contacts(
+            position, [3.0, -1.0, 0.0], contacts
+        )
+        self.assertTrue(np.all(np.isfinite(corrected)))
+        self.assertTrue(np.all(np.isfinite(velocity)))
+        self.assertLessEqual(np.linalg.norm(velocity), np.sqrt(10.0) + 1e-9)
+
+    def test_multi_contact_passes_do_not_reapply_restitution(self):
+        # A later contact pass may remove inward velocity caused by the first
+        # normal response, but must not apply the material bounce repeatedly.
+        normal = np.array([1.0, 0.0, 0.0])
+        custom_contact = collision.Collision(
+            "backboard", normal, 0.0, np.zeros(3)
+        )
+        _, velocity = collision.resolve_contacts(
+            [0.0, 0.0, 0.0], [-5.0, 0.0, 0.0], [custom_contact]
+        )
+        self.assertAlmostEqual(velocity[0], 3.5)
+
+    def test_multi_contact_can_disable_position_correction(self):
+        position = np.array([-0.075, 3.05, 0.0])
+        corrected, _ = collision.resolve_contacts(
+            position, [3.0, -1.0, 0.0], correct_position=False
+        )
+        np.testing.assert_allclose(corrected, position)
+
+    def test_unsatisfiable_overlap_correction_does_not_oscillate(self):
+        # Two opposing artificial contacts demonstrate the bounded fallback
+        # used when no candidate projection reduces total overlap.
+        first = collision.Collision(
+            "backboard", np.array([1.0, 0.0, 0.0]), 0.1, np.zeros(3)
+        )
+        second = collision.Collision(
+            "rim", np.array([-1.0, 0.0, 0.0]), 0.1, np.zeros(3)
+        )
+        position = np.zeros(3)
+        corrected, velocity = collision.resolve_contacts(
+            position, [0.0, 0.0, 0.0], [first, second]
+        )
+        np.testing.assert_allclose(corrected, position)
+        self.assertTrue(np.all(np.isfinite(velocity)))
 
 
 if __name__ == "__main__":

@@ -148,7 +148,7 @@
 - **真实数据暂存（data_validation/）**：SportVU 风格轨迹抽取 24,073 行（6 列，时间戳被导出压平成
   同一圆整值、轴约定未确认）+ 5 条出手位置/速度初值（单位/来源未记录；正 `x_m`、`y_m` ≈ 7.7–10.8 m
   与模型"投手在 −x、y 竖直"坐标约定冲突）+ 原始投篮数据集 300 行（仅二元 `Shot_Result`）；
-  `data_prep.py` 据此合成 `valid_data.csv`（305 行，IDs 1–305 连续整数、backspin 全部 23 rad/s、
+  `data_prep.py` 据此合成 `valid_data.csv`（305 行，IDs 1–305 连续整数、backspin 全部 14.137167 rad/s（= 2.25 RPS，取 `data_prep.py` 中 2.0–2.5 RPS 区间中点经 2π 换算）、
   51° 真空解速度、高度全 2.0 m、IDs 301–305 结局按指令预设为 `made`）——**可被 `validation.py`
   解析运行，但参数与部分标签是假设，不是实测验证**；原 `*_template.csv` 已移除。字段规范、
   假设清单与验收步骤见 `data_validation/DATA_SPECIFICATION.md`
@@ -164,5 +164,5 @@
       `validation.py` 得到真实一致率 + 置信区间 + kappa
 - [ ] 用文献速率标定三分球出手速度后重跑三分扫描，使罚球/三分峰值水平可直接比较
 - [ ] 写最终报告（方法、结果、局限、伦理）；补全 `Report_Draft.md` §3.3 的真实数据数字
-- [ ] （可选）调 `C_L0` 使最优后旋更接近计划书的 23 rad/s
+- [ ] （可选）调 `C_L0` 使最优后旋更接近计划书的 `23 rad/s`（注意：目前 `data_prep.py` 合成用的却是 `14.137167 rad/s`＝2.25 RPS，两者不是同一个值，见 README §9 与 §5）
 - [ ] （可选）用 `pip freeze` 固定精确依赖版本

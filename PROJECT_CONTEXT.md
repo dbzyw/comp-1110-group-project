@@ -144,13 +144,19 @@
   2D 速度窗口数据（`data_2d*.csv`）与交互器 `SCAN WINDOW` 同规则
 - **可复现性**：原 `*_improved.py` 链合并回单模块时逐位校验（CSV/图/指标与改进前一致），
   `test_core.py` / `test_collision.py` / `test_experiment.py` 全绿
-- **真实数据暂存（data_validation/）**：SportVU 风格轨迹抽取 24,073 行（6 列，时间戳精度丢失、
-  轴约定未确认）+ 5 条出手位置/速度初值（单位/来源未记录）；原 `*_template.csv` 已从仓库移除，
-  字段规范与验收步骤见 `data_validation/DATA_SPECIFICATION.md`（新版）——**尚不是可运行的验证输入**
+- **真实数据暂存（data_validation/）**：SportVU 风格轨迹抽取 24,073 行（6 列，时间戳被导出压平成
+  同一圆整值、轴约定未确认）+ 5 条出手位置/速度初值（单位/来源未记录；正 `x_m`、`y_m` ≈ 7.7–10.8 m
+  与模型"投手在 −x、y 竖直"坐标约定冲突）+ 原始投篮数据集 300 行（仅二元 `Shot_Result`）；
+  `data_prep.py` 据此合成 `valid_data.csv`（305 行，IDs 1–305 连续整数、backspin 全部 23 rad/s、
+  51° 真空解速度、高度全 2.0 m、IDs 301–305 结局按指令预设为 `made`）——**可被 `validation.py`
+  解析运行，但参数与部分标签是假设，不是实测验证**；原 `*_template.csv` 已移除。字段规范、
+  假设清单与验收步骤见 `data_validation/DATA_SPECIFICATION.md`
 
 ## 5. To-Do（下一步）
 
 - [ ] 给 SportVU 抽取件恢复原始时间戳精度、确认源坐标轴/原点/单位约定（见 DATA_SPECIFICATION.md §3/§7）
+- [ ] 处理 `valid_data.csv` 的假设问题：核对/剔除 IDs 301–305（正 `x_m`、`y_m` 存疑、`made` 为预设），
+      把 IDs 1–300 的合成参数换成实测/有来源的出手几何与 backspin 之后，一致率才可作为经验结论引用
 - [ ] 为每条 shot 补齐 `backspin` 与出手三分量（60 fps 逐帧追踪或来源标注），再跑
       `validation.py` 得到真实一致率 + 置信区间 + kappa
 - [ ] 用文献速率标定三分球出手速度后重跑三分扫描，使罚球/三分峰值水平可直接比较

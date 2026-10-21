@@ -21,7 +21,10 @@ constants. The simulation uses SI units and a right-handed coordinate system:
 |---|---|---|
 | `extracted_ball_tracks.csv` | 24,073 tracking rows with event, time, shot-clock, and ball-position fields | Frame-level positions only; it does not directly contain shot-level release inputs or outcomes. |
 | `selected_shot_initial_conditions.csv` | Five rows with `x_m`, `y_m`, `z_m`, `v0x`, `v0y`, and `v0z` | Has possible position and velocity components, but lacks shot IDs, backspin, outcome labels, and confirmed coordinate/unit metadata. |
+| `basketball_shooting_dataset.csv` | Raw shot-level source CSV, when supplied | Input to `data_prep.py`; its distance and outcome columns are used, while model inputs are estimated or defaulted under §7 assumptions. |
+| `valid_data.csv` | Output of `data_prep.py`, when generated | Has the exact validation schema and can be parsed by `validation.py`; its physical inputs are assumption-based, not measured values. |
 | `extract.py` | Extracts ball positions from a local `sample.json` | Writes tracking rows; the expected JSON source is not currently in this folder. |
+| `data_prep.py` | Converts a raw shooting CSV into `valid_data.csv` | Applies the assumptions in §6. It requires a distance and binary outcome column; resulting physical inputs are estimates/defaults, not measured ground truth. |
 
 All data tables use comma-delimited UTF-8 CSV. The original workbook was
 converted to `selected_shot_initial_conditions.csv`; it is no longer kept in
@@ -159,16 +162,98 @@ empirical validation. For team-member footage, obtain consent, store it
 locally, avoid retaining identifying face data, and delete it after the final
 report.
 
-## 7. Readiness of current data
+## 7. `data_prep.py` assumptions and usage
 
-Neither current CSV satisfies the validation input contract:
+The helper script is a convenience conversion, not a substitute for verifying
+source measurements. Run it from the project root or the `data_validation`
+folder after placing the raw CSV beside the script:
+
+```text
+python data_validation/data_prep.py
+```
+
+By default it reads `basketball_shooting_dataset.csv` from the current
+directory or script directory, then writes `data_validation/valid_data.csv`.
+An alternate source and output can be supplied:
+
+```text
+python data_validation/data_prep.py "path/to/source.csv" --output "path/to/valid_data.csv"
+```
+
+To also append records from `selected_shot_initial_conditions.csv`, pass its
+path explicitly:
+
+```text
+python data_validation/data_prep.py --selected-input data_validation/selected_shot_initial_conditions.csv
+```
+
+The selected file must have the exact columns `x_m,y_m,z_m,v0x,v0y,v0z`.
+Those values are copied directly into the matching validation fields, IDs
+continue after the raw dataset's generated IDs, and the selected rows receive
+the assumed outcome from `--selected-outcome` (default `made`) and the
+configured 23 rad/s backspin. This assumes the selected file's coordinates,
+velocity units, and axes already match the simulation; confirm this before
+interpreting predictions. `extracted_ball_tracks.csv` is deliberately not
+accepted as a shot-level input: it is frame-level and requires reliable shot
+grouping, precise timing, coordinate mapping, spin, and actual outcome labels.
+
+It recognizes common distance columns (including
+`Distance_from_Basket_m`) and binary outcome columns (including `Shot_Result`,
+`made_shot`, and `Shot_Accuracy`). Unit suffixes for metres, centimetres,
+millimetres, feet, and inches are converted to metres; a distance header with
+no recognized unit is assumed to be metres. If no release-height column is
+found or its cell is blank, release height defaults to 2.0 m. A present
+release-height column with no recognized unit is assumed to be metres.
+
+For the generated position, the script assumes the distance is a straight-on
+horizontal distance to the rim centre. It uses the model's rim-centre
+coordinate `x = -0.375 m`, so `release_x = -0.375 - distance`; it sets
+`release_z = 0`. It does not copy a potentially ambiguous raw angle or speed.
+Instead it assumes a 51-degree launch and solves the ideal projectile
+equation, ignoring drag, Magnus lift, and collisions:
+
+```text
+v² = g d² / [2 cos²(theta) (d tan(theta) - (3.05 - release_y))]
+v0x = v cos(theta)
+v0y = v sin(theta)
+v0z = 0
+```
+
+If the distance/height combination has no finite positive solution, the
+script uses the requested fallback components `v0x=6`, `v0y=4`, `v0z=0`
+(m/s). It assigns `backspin=23 rad/s` to every shot. Binary outcomes are
+normalized to `made` or `miss`; unknown labels and missing distances stop
+conversion with a row-specific error. IDs are sequential integers starting at
+1. The script prints the exact nine-column header and first five prepared
+records before writing the output.
+
+These assumptions satisfy the file format and parser requirements, but they
+do not make the generated inputs equivalent to measured release positions,
+velocity vectors, or spin. Do not interpret validation metrics based on
+assumed inputs as an empirical assessment of the physical model unless the
+assumptions have been independently confirmed.
+
+## 8. Readiness of current data
+
+`valid_data.csv` contains 305 parser-compatible rows: 300 converted from the
+external shooting dataset, plus five rows copied from the selected
+initial-conditions CSV. IDs are sequential integers from 1 through 305. For
+IDs 301–305, `actual_outcome` was set to `made` at the user's direction and
+backspin was assumed to be 23 rad/s. These labels are assumptions, not
+verified observed outcomes. The selected coordinates/velocities were copied
+using their column names as if their axes and units match the simulation;
+their `y_m` values (approximately 7.7–10.8 m) make that interpretation
+questionable and should be resolved before using these records for model
+assessment.
+
+The tracking extract does not satisfy the validation input contract:
 
 - The tracking extract has no release velocity, backspin, shot-level outcome,
   or confirmed mapping from event IDs to shots.
-- The selected initial-conditions file lacks an integer shot ID, backspin,
-  actual outcome, and verified units/axes. Its possible vertical coordinates
-  require review.
+- It is frame-level rather than shot-level, and its exported timestamps all
+  have the same rounded representation. It was not added to `valid_data.csv`.
 
-Do not pass either file directly to `validation.py`. A valid validation file
-must contain all nine required columns with integer IDs, finite physical
-inputs in the defined units/conventions, and a supported observed outcome.
+When rerunning `data_prep.py`, include the `--selected-input` option above to
+recreate the five appended rows. Parser compatibility is not evidence that
+assumed or copied inputs represent measured shot conditions. Metrics that
+include assumed outcome labels are not an empirical validation result.

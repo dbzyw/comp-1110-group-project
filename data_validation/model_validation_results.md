@@ -378,4 +378,54 @@ Each validation input is reproduced with its label, model prediction, and binary
 | 302 | selected | 4.492000 | 10.833000 | 2.559000 | 1.550000 | 0.050000 | 1.525000 | 14.137167 | made | miss | no |
 | 303 | selected | 24.363000 | 8.565000 | 2.640000 | 1.750000 | 0.100000 | 5.275000 | 14.137167 | made | miss | no |
 | 304 | selected | 5.665000 | 7.731000 | 2.505000 | 1.175000 | 0.450000 | 0.121000 | 14.137167 | made | miss | no |
-| 305 | selected | 5.599000 | 7.730000 | 2.593000 | 2.800000 | 0.225000 | 0.131000 | 14.137167 | made | miss | no |
+ | 305 | selected | 5.599000 | 7.730000 | 2.593000 | 2.800000 | 0.225000 | 0.131000 | 14.137167 | made | miss | no |
+
+## Reproducing this report
+
+Regenerate every number above with a single command from the project root (no
+model constants are tuned on this data):
+
+```bash
+python validation.py data_validation/valid_data.csv
+```
+
+`validation.py` reads the nine-column CSV, calls the frozen
+`simulation.simulate_shot()` for every row, compares each predicted `made` /
+`miss` against `actual_outcome`, and prints the same per-shot table plus the
+binary metrics, Wilson 95% confidence interval, Cohen's kappa, no-information
+rate, and the four-class (swish / rim-in / board-in / miss) confusion matrix
+shown here. The four-class matrix is populated only for the 152 rows that enter
+a defined class; the `made` rows that the model predicts as `swish` / `rim-in` /
+`board-in` appear in the binary agreement statistics but not as four-class true
+positives because the recorded `made` label does not specify which subtype.
+
+## Reading the numbers: what these results are and are not
+
+- **This is a pipeline check, not an empirical validation.** All `release_y`,
+  `v0y`, `v0x` and `backspin` values for IDs 1–300 were produced under the
+  documented `data_prep.py` assumptions (straight-line distance mapped to
+  `release_x = -0.375 - d`, idealized 51° launch, fixed 14.137167 rad/s spin,
+  stature/shot-type height imputation), not from measured release kinematics.
+  So the ~50% agreement measures how the model behaves on *assumed* inputs, and
+  is close to the 49.92% chance-agreement baseline (kappa ≈ 0.012): the model is
+  essentially no better than a coin flip on this constructed set.
+- **IDs 301–305 agree 0/5.** Those five rows copy `x_m`, `y_m`, `z_m`, `v0x…`
+  straight from `selected_shot_initial_conditions.csv` (positive `x_m`,
+  `y_m` ≈ 7.7–10.8 m, units/axes unconfirmed) and had `actual_outcome` manually
+  preset to `made`. They are included to exercise the full schema but their
+  coordinates conflict with the model's convention (shooter on `−x`, `y`
+  vertical), so they should not be treated as validated shots. See
+  `DATA_SPECIFICATION.md` §5.
+- **Recall / sensitivity for `made` is 24.84% (38/153).** When the model does
+  predict a made shot it is often right, but it misses most of the recorded
+  makes because the assumed launch geometry is a single idealized angle rather
+  than the spread of real release conditions.
+- **Do not tune on this data.** Per §2 of `DATA_SPECIFICATION.md`, validation
+  files must not be used to fit `C_D`, `C_L0`, restitution, or the rim/height
+  constants; doing so would make the agreement statistic circular.
+- **What real validation would require:** measured per-shot release position and
+  velocity (or 60 fps video-derived kinematics), verified coordinate axes/units,
+  per-shot backspin with a confirmed sign convention, and true four-class
+  outcome labels, then re-run `python validation.py <prepared.csv>`. Only then is
+  the reported agreement a defensible empirical conclusion.
+

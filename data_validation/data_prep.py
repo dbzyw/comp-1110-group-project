@@ -2,9 +2,11 @@
 
 Assumptions:
 * Distance is a straight-on horizontal distance to the rim centre.
-* The 51-degree vacuum projectile calculation ignores drag, Magnus lift, and
-  rim/board contact. If no finite solution exists, use the requested component
-  defaults (6 m/s, 4 m/s, 0 m/s).
+* When the source supplies shot speed and release angle, they define the
+  straight-on horizontal and vertical velocity components. Otherwise, a
+  51-degree vacuum projectile calculation supplies those components. The
+  fallback ignores drag, Magnus lift, and rim/board contact; if it has no
+  finite solution, it uses (6 m/s, 4 m/s, 0 m/s).
 * Missing release height is estimated from player height and shot type when
   both are available; otherwise it defaults to 2.0 m. Lateral position and
   velocity are assumed zero; backspin defaults to the midpoint of a 2.0–2.5
@@ -113,6 +115,20 @@ def _initial_velocity(distance_m, release_y_m):
     return DEFAULT_VELOCITY
 
 
+def _velocity_from_speed_and_angle(speed_m_s, angle_deg, row_number):
+    """Resolve a straight-on launch-speed measurement into model components."""
+    speed = _parse_finite_float(speed_m_s, "shot speed", row_number)
+    angle = _parse_finite_float(angle_deg, "release angle", row_number)
+    if speed <= 0.0:
+        raise ValueError(f"Row {row_number}: shot speed must be positive.")
+    if not 0.0 < angle < 90.0:
+        raise ValueError(
+            f"Row {row_number}: release angle must be between 0 and 90 degrees."
+        )
+    angle_rad = math.radians(angle)
+    return speed * math.cos(angle_rad), speed * math.sin(angle_rad), 0.0
+
+
 def _estimate_release_height(player_height_m, shot_type, row_number):
     height_m = _parse_finite_float(player_height_m, "player height", row_number)
     if height_m <= 0.0:
@@ -197,6 +213,29 @@ def _read_rows(input_path):
             ),
             None,
         )
+        speed_column = next(
+            (
+                name
+                for name in reader.fieldnames
+                if _normalise_header(name)
+                in {"shotspeed", "shotspeedms", "releasespeed", "releasespeedms"}
+            ),
+            None,
+        )
+        release_angle_column = next(
+            (
+                name
+                for name in reader.fieldnames
+                if _normalise_header(name)
+                in {"releaseangle", "releaseangledeg", "launchangle", "launchangledeg"}
+            ),
+            None,
+        )
+        if bool(speed_column) != bool(release_angle_column):
+            raise ValueError(
+                "Source must provide both shot speed and release angle, or neither. "
+                f"Found speed={speed_column!r}, angle={release_angle_column!r}."
+            )
 
         distance_scale = _unit_scale(distance_column)
         height_scale = _unit_scale(height_column) if height_column else 1.0
@@ -252,7 +291,14 @@ def _read_rows(input_path):
                         f"Row {row_number}: release height cannot be negative."
                     )
 
-            v0x, v0y, v0z = _initial_velocity(distance_m, release_y_m)
+            if speed_column and release_angle_column:
+                v0x, v0y, v0z = _velocity_from_speed_and_angle(
+                    raw.get(speed_column, ""),
+                    raw.get(release_angle_column, ""),
+                    row_number,
+                )
+            else:
+                v0x, v0y, v0z = _initial_velocity(distance_m, release_y_m)
             outcome = _map_outcome(raw.get(outcome_column, ""), row_number)
 
             # In the simulation's court frame, the rim centre is at x=-0.375 m
@@ -273,47 +319,6 @@ def _read_rows(input_path):
     if not output_rows:
         raise ValueError(f"{input_path} contains no shot records.")
     return output_rows
-
-
-def _read_selected_initial_conditions(input_path, first_shot_id, assumed_outcome):
-    """Map precomputed positions/velocities into validation rows."""
-    with input_path.open("r", encoding="utf-8-sig", newline="") as source:
-        reader = csv.DictReader(source)
-        expected = ["x_m", "y_m", "z_m", "v0x", "v0y", "v0z"]
-        if reader.fieldnames != expected:
-            raise ValueError(
-                f"{input_path} must have exactly these columns: {expected}"
-            )
-        rows = []
-        for row_number, raw in enumerate(reader, start=2):
-            if not any(value not in (None, "") for value in raw.values()):
-                continue
-            try:
-                values = {
-                    field: _parse_finite_float(raw[field], field, row_number)
-                    for field in expected
-                }
-            except (TypeError, ValueError) as exc:
-                raise ValueError(f"{input_path}: {exc}") from exc
-            if values["y_m"] < 0.0:
-                raise ValueError(
-                    f"{input_path} row {row_number}: y_m cannot be below zero."
-                )
-            shot_id = first_shot_id + len(rows)
-            rows.append(
-                {
-                    "shot_id": shot_id,
-                    "release_x": f"{values['x_m']:.6f}",
-                    "release_y": f"{values['y_m']:.6f}",
-                    "release_z": f"{values['z_m']:.6f}",
-                    "v0x": f"{values['v0x']:.6f}",
-                    "v0y": f"{values['v0y']:.6f}",
-                    "v0z": f"{values['v0z']:.6f}",
-                    "backspin": f"{DEFAULT_BACKSPIN_RAD_S:.6f}",
-                    "actual_outcome": assumed_outcome,
-                }
-            )
-    return rows
 
 
 def _print_preview(rows):
@@ -338,18 +343,7 @@ def main():
         "-o",
         "--output",
         default=None,
-        help="output CSV (default: valid_data.csv beside this script)",
-    )
-    parser.add_argument(
-        "--selected-input",
-        default=None,
-        help="optionally append x_m,y_m,z_m,v0x,v0y,v0z rows from this CSV",
-    )
-    parser.add_argument(
-        "--selected-outcome",
-        choices=("made", "miss"),
-        default="made",
-        help="assumed binary label for selected-input rows (default: made)",
+        help="output CSV (default: valid_data_2D.csv beside this script)",
     )
     args = parser.parse_args()
 
@@ -367,7 +361,7 @@ def main():
     output_path = (
         Path(args.output).expanduser()
         if args.output
-        else script_dir / "valid_data.csv"
+        else script_dir / "valid_data_2D.csv"
     )
     if not output_path.is_absolute():
         output_path = Path.cwd() / output_path
@@ -376,30 +370,6 @@ def main():
 
     try:
         rows = _read_rows(input_path)
-        if args.selected_input:
-            selected_path = Path(args.selected_input).expanduser()
-            if not selected_path.is_absolute():
-                selected_candidates = [
-                    Path.cwd() / selected_path,
-                    script_dir / selected_path,
-                ]
-                selected_path = next(
-                    (
-                        candidate
-                        for candidate in selected_candidates
-                        if candidate.is_file()
-                    ),
-                    selected_candidates[0],
-                )
-            if not selected_path.is_file():
-                raise FileNotFoundError(
-                    f"selected initial-conditions file not found: {selected_path}"
-                )
-            rows.extend(
-                _read_selected_initial_conditions(
-                    selected_path, len(rows) + 1, args.selected_outcome
-                )
-            )
     except (OSError, csv.Error, ValueError) as exc:
         parser.error(str(exc))
 

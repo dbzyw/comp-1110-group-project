@@ -20,10 +20,12 @@ Validation compares recorded outcomes against the frozen 3D physics simulation. 
 | File | Observed contents (re-checked 2026-10-21) | Relevance to `validation.py` |
 |---|---|---|
 | `extracted_ball_tracks.csv` | 24,073 tracking rows, 6 columns; 49 distinct event IDs (1–54); 10 complete duplicate rows; 953 blank `shot_clock` | Frame-level positions only; it does not directly contain shot-level release inputs or outcomes. |
-| `selected_shot_initial_conditions.csv` | Five rows `x_m,y_m,z_m,v0x,v0y,v0z` | Has possible position and velocity components, but lacks shot IDs, backspin, outcome labels, and confirmed coordinate/unit metadata (see §5 and 附录 A for the exact values). |
+| `selected_shot_initial_conditions.csv` | Five rows `x_m,y_m,z_m,v0x,v0y,v0z` | Supplies the first five tentative 3D records; it lacks source shot IDs, backspin, outcome labels, and confirmed coordinate/unit metadata. |
+| `filtered_data_30_groups.csv` | 30 rows, columns `x_m,y_m,z_m,v0x,v0y,v0z` | Supplies the other 30 tentative 3D records. Source axes and units remain unverified. |
 | `basketball_shooting_dataset.csv` | 300 rows × 20 columns (e.g. `Player_ID`, `Distance_from_Basket_m`, `Shot_Result`, `Shot_Speed_m_s`, `Release_Angle_deg`, gyroscope `*_deg_s`); binary outcomes 148 made / 152 miss | Raw shot-level source CSV; input to `data_prep.py`. Its distance and outcome columns are recognised by the helper; provenance/axes still unconfirmed. |
-| `data_prep.py` | Conversion helper (not data) | Applies the §7 assumptions to turn the raw dataset (+ optionally the selected file) into `valid_data.csv`. |
-| `valid_data.csv` | 305 rows, exact nine-column schema; IDs 1–305 sequential integers; 153 `made` / 152 `miss`; all rows use imputed `backspin = 14.137167 rad/s`; converted rows estimate `release_y` from stature and shot type | Has the exact validation schema and can be parsed by `validation.py`; its inputs are §7 assumptions, so its agreement numbers are not an empirical model assessment. |
+| `data_prep.py` | Conversion helper (not data) | Applies the §7 straight-on assumptions to turn the raw dataset into `valid_data_2D.csv`. |
+| `valid_data_2D.csv` | 300 rows, exact nine-column schema; IDs 1–300; 148 `made` / 152 `miss`; `release_z = v0z = 0`; imputed `backspin = 14.137167 rad/s` | A 2D/straight-on approximation that can be parsed by `validation.py`; it is not measured 3D kinematics. |
+| `valid_data_3D.csv` | 35 rows, exact nine-column schema; IDs 301–335; all labels assumed `made`; imputed `backspin = 14.137167 rad/s` | Tentative 3D inputs with supplied position and velocity components. Source axes, origin, velocity units, and labels remain unverified. |
 | `extract.py` | Extracts ball positions from a local `sample.json` | Writes tracking rows; the expected JSON source is not currently in this folder. |
 
 All data tables use comma-delimited UTF-8 CSV. The original workbook was
@@ -49,7 +51,7 @@ require these to be the only columns. It expects one record per shot.
 | Field | Code-level requirement | Meaning and units |
 |---|---|---|
 | `shot_id` | Must parse with Python `int()` | Integer shot identifier. Despite any more general description elsewhere, the current loader does not accept IDs such as `source_row_0001`. Duplicate IDs generate a warning but are still included. |
-| `release_x` | Finite float | Ball-centre release x coordinate, metres, positive toward the basket. |
+| `release_x` | Finite float | Ball-centre release x coordinate, metres. The shooter is on the negative-x side; the ball travels toward the basket in the positive-x direction. |
 | `release_y` | Finite float | Ball-centre release height, metres, positive upwards. The simulation rejects values below zero. |
 | `release_z` | Finite float | Ball-centre lateral release coordinate, metres. |
 | `v0x` | Finite float | Initial velocity along x, m/s. |
@@ -174,36 +176,18 @@ python data_validation/data_prep.py
 ```
 
 By default it reads `basketball_shooting_dataset.csv` from the current
-directory or script directory, then writes `data_validation/valid_data.csv`.
+directory or script directory, then writes `data_validation/valid_data_2D.csv`.
 An alternate source and output can be supplied:
 
 ```text
-python data_validation/data_prep.py "path/to/source.csv" --output "path/to/valid_data.csv"
-```
-
-To also append records from `selected_shot_initial_conditions.csv`, pass its
-path explicitly:
-
-```text
-python data_validation/data_prep.py --selected-input data_validation/selected_shot_initial_conditions.csv
+python data_validation/data_prep.py "path/to/source.csv" --output "path/to/valid_data_2D.csv"
 ```
 
 | CLI 参数 | 作用 | 缺省 |
 |---|---|---|
 | （位置参数） | 原始 shooting CSV 路径 | `basketball_shooting_dataset.csv` |
-| `--output` | 输出 valid CSV | `data_validation/valid_data.csv` |
-| `--selected-input` | 追加 selected 初值行 | 不追加 |
-| `--selected-outcome` | 追加行的结局标签 | `made` |
-| 固定合成参数 | 角度 51°、backspin 14.137167 rad/s（2.25 RPS, midpoint of a 2.0–2.5 RPS practical target range）、release-height estimate when player height and shot type exist (otherwise 2.0 m fallback), `release_x = -0.375 - distance`, `release_z = 0` | — |
-
-The selected file must have the exact columns `x_m,y_m,z_m,v0x,v0y,v0z`.
-Those values are copied directly into the matching validation fields, IDs
-continue after the raw dataset's generated IDs, and the selected rows receive
-the assumed outcome from `--selected-outcome` (default `made`) and the
-configured 14.137167 rad/s imputed backspin. This assumes the selected file's coordinates,
-velocity units, and axes already match the simulation; confirm this before
-interpreting predictions (`extracted_ball_tracks.csv` was deliberately not
-appended; see also §5's implausible values).
+| `--output` | 输出 2D valid CSV | `data_validation/valid_data_2D.csv` |
+| 合成参数 | Source `Shot_Speed_m_s` + `Release_Angle_deg` when both are present; otherwise 51° vacuum fallback; backspin 14.137167 rad/s; release-height estimate; `release_x = -0.375 - distance`, `release_z = 0` | — |
 
 It recognizes common distance columns (including `Distance_from_Basket_m`)
 and binary outcome columns (including `Shot_Result`, `made_shot`, and
@@ -238,9 +222,18 @@ but does not validate this stature multiplier or the shot-specific fraction.
 For the generated position, the script assumes the distance is a straight-on
 horizontal distance to the rim centre. It uses the model's rim-centre
 coordinate `x = -0.375 m`, so `release_x = -0.375 - distance`; it sets
-`release_z = 0`. It does not copy a potentially ambiguous raw angle or speed.
-Instead it assumes a 51-degree launch and solves the ideal projectile
-equation, ignoring drag, Magnus lift, and collisions:
+`release_z = 0`. When both source columns are present, it computes the
+straight-on components from the recorded speed and release angle:
+
+```text
+v0x = Shot_Speed_m_s cos(Release_Angle_deg)
+v0y = Shot_Speed_m_s sin(Release_Angle_deg)
+v0z = 0
+```
+
+If either source column is absent, the legacy fallback assumes a 51-degree
+launch and solves the ideal projectile equation, ignoring drag, Magnus lift,
+and collisions:
 
 ```text
 v² = g d² / [2 cos²(theta) (d tan(theta) - (3.05 - release_y))]
@@ -249,9 +242,9 @@ v0y = v sin(theta)
 v0z = 0
 ```
 
-If the distance/height combination has no finite positive solution, the
-script uses the requested fallback components `v0x=6`, `v0y=4`, `v0z=0`
-(m/s) (none triggered in the current file). It assigns the midpoint of a
+If the fallback distance/height combination has no finite positive solution,
+the script uses the requested fallback components `v0x=6`, `v0y=4`, `v0z=0`
+(m/s). It assigns the midpoint of a
 2.0–2.5 RPS practical target range, `2.25 × 2π = 14.137167 rad/s`, to every
 shot. This target is reported by the [Spalding TF DNA app](https://smartbasketball.spalding.com/pages/spin-rate-soft-touch-from-proper-shot-mechanics) for its users; it is
 a practical reference, not a measured normal range for this Kaggle dataset or
@@ -264,44 +257,47 @@ nine-column header and first five prepared records before writing the output.
 
 These assumptions satisfy the file format and parser requirements, but they
 do not make the generated inputs equivalent to measured release positions,
-velocity vectors, or spin. Do not interpret validation metrics based on
-assumed inputs as an empirical assessment of the physical model unless the
-assumptions have been independently confirmed. In particular: because the
-release vector was *solved to pass through the rim under vacuum* at 51°,
-the full 3D model (drag + backspin, which lower the arrival height) will
-systematically miss many "made" rows that were generated from the same
-idealized equation — expect a substantial, assumption-driven disagreement
-rate, not a model-quality result, when running `validation.py` on this file.
+3D velocity vectors, or spin. The current 2D file uses source speed and
+release angle, but its source axes and release-angle semantics are
+unverified; lateral position and velocity remain assumed zero. Do not
+interpret its validation metric as an empirical assessment of the physical
+model unless these assumptions have been independently confirmed.
 
 ## 8. Readiness of current data
 
-`valid_data.csv` contains 305 parser-compatible rows: 300 converted from the
-external shooting dataset, plus five rows copied from the selected
-initial-conditions CSV. IDs are sequential integers from 1 through 305 (复验:
-all parse as `int()`, unique ✓; outcome counts 153 `made` / 152 `miss`; every
-row uses imputed `backspin = 14.137167 rad/s` (2.25 RPS); first 300 rows all
-`release_y` estimated from stature and shot type with
-`release_x ∈ [-7.805, -1.535]`, solved speeds 5.84–9.17 m/s). For IDs 301–305,
-`actual_outcome` was set to `made` at the user's direction and the same
-imputed backspin was assigned. These labels are assumptions, not verified observed
-outcomes. The selected coordinates/velocities were copied using their column
-names as if their axes and units match the simulation; their `y_m` values
-(approximately 7.7–10.8 m) — and their **positive** `x_m` values (the model
-expects the shooter on the negative-x side; rows 1 and 3 even place the
-release beyond the hoop) — make that interpretation questionable and should
-be resolved before using these records for model assessment.
+The validation inputs are intentionally split:
+
+- `valid_data_2D.csv` contains IDs 1–300, generated from the external
+  shooting dataset under a straight-on assumption. Its release height is
+  estimated from stature and shot type, `release_z = v0z = 0`, and the
+  release velocity is resolved from source `Shot_Speed_m_s` and
+  `Release_Angle_deg`. It has 148 `made` and 152 `miss` labels. Its 153/300
+  agreement result is documented in
+  `model_validation_results_2D.md`; it is a 2D approximation, not measured
+  3D release kinematics.
+- `valid_data_3D.csv` contains IDs 301–335. Positive source `x_m` was
+  negated, `z_m` was tentatively mapped to vertical `release_y`, and `y_m`
+  to lateral `release_z`; supplied velocity components were copied unchanged.
+  Every row is labelled `made` at the user's direction and uses imputed
+  `backspin = 14.137167 rad/s`. Its 0/35 agreement result is documented in
+  `model_validation_results_3D.md`. The labels, source axes, origin, and
+  velocity units are unverified; its lateral positions are large
+  (0.658–14.248 m). It is a tentative parser-compatible 3D scenario, not an
+  empirical validation dataset.
 
 The tracking extract does not satisfy the validation input contract:
 
 - The tracking extract has no release velocity, backspin, shot-level outcome,
   or confirmed mapping from event IDs to shots.
 - It is frame-level rather than shot-level, and its exported timestamps all
-  have the same rounded representation. It was not added to `valid_data.csv`.
+  have the same rounded representation. It was not added to either validation
+  input file.
 
-When rerunning `data_prep.py`, include the `--selected-input` option above to
-recreate the five appended rows. Parser compatibility is not evidence that
-assumed or copied inputs represent measured shot conditions. Metrics that
-include assumed outcome labels are not an empirical validation result.
+Running `data_prep.py` recreates the 2D file. The 3D file is assembled from
+the two supplied-component CSVs and its tentative mapping described above.
+Parser compatibility is not evidence that assumed or copied inputs represent
+measured shot conditions. Metrics that include assumed outcome labels are not
+an empirical validation result.
 
 ## 附录 A · 2026-10-21 复验观察值（本报告内数字的出处）
 
@@ -309,8 +305,10 @@ include assumed outcome labels are not an empirical validation result.
 |---|---|
 | `extracted_ball_tracks.csv` | 24,073 行；49 个 event_id（min 1 / max 54）；完全重复行 10；`shot_clock` 空值 953；`timestamp_ms` 唯一文本值 `1.45196E+12`；位置无空值；范围 x −0.545…30.368 / y −0.258…15.592 / z 0.021…5.217 |
 | `selected_shot_initial_conditions.csv` | 5 行，全表见 §5（v0 值均 2 位小数内、疑似手工圆整） |
+| `filtered_data_30_groups.csv` | 30 行，列 `x_m,y_m,z_m,v0x,v0y,v0z`；位置范围 x 1.221…27.358 / y 0.658…14.248 / z 2.462…2.534 |
 | `basketball_shooting_dataset.csv` | 300 行 × 20 列；`Shot_Result` 1=148 / 0=152；首行样本 `P001 … 4.39 …`；含 `Timestamp`（日期时间）与三轴陀螺仪 `*_deg_s` |
-| `valid_data.csv` | 305 行、九列与 §3.1 逐字一致；IDs 1…305 唯一整数；`backspin` 全 14.137167 rad/s（2.25 RPS imputed）；前 300 行 `release_y` 由身高与 shot type 估算、`release_x` −7.805…−1.535；`made` 153 / `miss` 152 |
+| `valid_data_2D.csv` | 300 行、九列与 §3.1 一致；IDs 1…300；`release_z` / `v0z` 均为 0；`made` 148 / `miss` 152 |
+| `valid_data_3D.csv` | 35 行、九列与 §3.1 一致；IDs 301…335；正 `x_m` 已取负、`y_m`/`z_m` 暂按侧向/竖直映射；全为假设 `made`，源坐标与单位未核实 |
 
 ## 附录 B · 复算这些数字的命令
 
@@ -323,9 +321,11 @@ dups = sum(c-1 for c in collections.Counter(map(tuple, rows)).values() if c > 1)
 blank = sum(1 for r in rows if r[2].strip() == '')   # shot_clock 空值
 u_ts  = {r[1] for r in rows}                         # 时间戳唯一值
 ds = list(csv.reader(open(p+'basketball_shooting_dataset.csv', encoding='utf-8-sig')))[1:]
-vd = list(csv.reader(open(p+'valid_data.csv', encoding='utf-8-sig')))[1:]
-oc  = collections.Counter(r[8].strip().lower() for r in vd)
-int_ids = all(s.lstrip('-').isdigit() for s in [r[0] for r in vd])
+vd2 = list(csv.reader(open(p+'valid_data_2D.csv', encoding='utf-8-sig')))[1:]
+vd3 = list(csv.reader(open(p+'valid_data_3D.csv', encoding='utf-8-sig')))[1:]
+oc2 = collections.Counter(r[8].strip().lower() for r in vd2)
+oc3 = collections.Counter(r[8].strip().lower() for r in vd3)
+int_ids = all(s.lstrip('-').isdigit() for s in [r[0] for r in vd2 + vd3])
 ```
 
 数字与本文一致即视为规范未腐坏；任何不一致应先在 main 上重验再修订本文。

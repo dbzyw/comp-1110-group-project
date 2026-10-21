@@ -58,8 +58,8 @@ Drag and spin matter more the farther the shot.
 ## Slide 9 — Validation Design
 
 The pipeline reports agreement, Wilson 95% CI, Cohen's kappa, binary metrics, and a four-class confusion matrix.
-The current 305-row valid_data.csv run gives 152/305 agreement (49.8%; Wilson 95% CI [44.3%, 55.4%]), kappa = 0.000, and a 50.2% majority-class baseline.
-This is not an empirical score: physical inputs are assumption-generated, labels are binary, and five appended initial conditions have unverified axes/units and assigned outcomes. The model predicted every row as a miss.
+The validation inputs are split: `valid_data_2D.csv` has 300 straight-on approximation rows using source shot speed and release angle and gives 153/300 agreement (51.00%; Wilson 95% CI [45.37%, 56.61%]); `valid_data_3D.csv` has 35 tentative supplied-component rows and gives 0/35 agreement (0.00%; Wilson 95% CI [0.00%, 9.89%]).
+Neither is an empirical score: 2D physical inputs are assumption-generated, while the 3D rows have unverified axes/units, imputed spin, and assumed made outcomes. The 3D source x values were negated and its y/z axes tentatively remapped, but their coordinate origins remain unconfirmed.
 Self-consistent dummy data gives 20/20 agreement (100%, kappa = 1.000), which checks the pipeline only.
 Real validation still requires measured release states, backspin, verified coordinate/time conventions, and observed shot outcomes.
 

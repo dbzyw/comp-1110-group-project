@@ -45,7 +45,7 @@ python test_core.py && python test_collision.py && python test_experiment.py
    shot_id, release_x, release_y, release_z, v0x, v0y, v0z, backspin, actual_outcome
    ```
 
-2. 把真实数据文件放到项目目录，例如 `real_shots.csv`。`data_validation/` 现有内容、字段规范与验收步骤见 `data_validation/DATA_SPECIFICATION.md`。当前状态：`valid_data.csv`（305 行）已符合九列 schema，`python validation.py data_validation/valid_data.csv` 可以直接跑通验证链路；但它的物理输入是 `data_prep.py` 在显式假设下合成的（正面距离映射 `x = -0.375 - d`、固定 51° 真空解速度、统一 23 rad/s 后旋、缺省出手高度 2.0 m；末尾 5 行直接拷贝 selected 初值、结局按指令预设为 `made`、其正 `x_m` 与 `y_m`≈7.7–10.8 m 还和模型坐标约定冲突），所以此时的指标度量的是"假设 + 二元标签"，**不是实测验证结论**——真实一致率仍需补齐实测出手参数与标签后重跑。
+2. 把真实数据文件放到项目目录，例如 `real_shots.csv`。`data_validation/` 现有内容、字段规范与验收步骤见 `data_validation/DATA_SPECIFICATION.md`。当前数据分为 `valid_data_2D.csv`（300 行直线近似，`release_z = v0z = 0`）和 `valid_data_3D.csv`（35 行暂定 3D 输入）。分别运行 `python validation.py data_validation/valid_data_2D.csv` 或 `python validation.py data_validation/valid_data_3D.csv`。3D 文件的坐标映射、单位、标签和后旋仍含假设，因此两份结果都**不是实测验证结论**。
 
 3. 两种方式跑验证：
 

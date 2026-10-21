@@ -146,20 +146,19 @@
 - **可复现性**：原 `*_improved.py` 链合并回单模块时逐位校验（CSV/图/指标与改进前一致），
   `test_core.py` / `test_collision.py` / `test_experiment.py` 全绿
 - **真实数据暂存（data_validation/）**：SportVU 风格轨迹抽取 24,073 行（6 列，时间戳被导出压平成
-  同一圆整值、轴约定未确认）+ 5 条出手位置/速度初值（单位/来源未记录；正 `x_m`、`y_m` ≈ 7.7–10.8 m
-  与模型"投手在 −x、y 竖直"坐标约定冲突）+ 原始投篮数据集 300 行（仅二元 `Shot_Result`）；
-  `data_prep.py` 据此合成 `valid_data.csv`（305 行，IDs 1–305 连续整数、backspin 全部 23 rad/s、
-  51° 真空解速度、高度全 2.0 m、IDs 301–305 结局按指令预设为 `made`）——**可被 `validation.py`
-  解析运行，但参数与部分标签是假设，不是实测验证**；原 `*_template.csv` 已移除。字段规范、
-  假设清单与验收步骤见 `data_validation/DATA_SPECIFICATION.md`
-- 本次运行的 `valid_data.csv` 验证结果为 152/305 agreement（49.8%，Wilson 95% CI [44.3%, 55.4%]），
-  κ = 0.000；模拟对全部 305 行均预测 miss。由于输入参数和部分标签为假设，该结果不是经验验证结论。
+  同一圆整值、轴约定未确认）+ 5 条出手位置/速度初值 + 30 条筛选位置/速度数据（源单位、坐标轴与来源仍未确认）
+  + 原始投篮数据集 300 行（仅二元 `Shot_Result`）。数据已分离：`valid_data_2D.csv` 有 300 行，
+  由 `data_prep.py` 以 straight-on 假设生成（`release_z = v0z = 0`）；`valid_data_3D.csv` 有
+  35 行暂定 3D 输入，正 `x_m` 已取负且 `z_m`/`y_m` 暂映射为高度/侧向位置。两份 CSV 均可被
+  `validation.py` 解析，但并非实测验证；字段规范见 `data_validation/DATA_SPECIFICATION.md`。
+- 独立结果：2D 近似使用 source speed/angle 后为 153/300 agreement（51.00%，Wilson 95% CI [45.37%, 56.61%]）；暂定 3D
+  输入为 0/35 agreement（0.00%，Wilson 95% CI [0.00%, 9.89%]）。两者均不应视为经验结论。
 
 ## 5. To-Do（下一步）
 
 - [ ] 给 SportVU 抽取件恢复原始时间戳精度、确认源坐标轴/原点/单位约定（见 DATA_SPECIFICATION.md §3/§7）
-- [ ] 处理 `valid_data.csv` 的假设问题：核对/剔除 IDs 301–305（正 `x_m`、`y_m` 存疑、`made` 为预设），
-      把 IDs 1–300 的合成参数换成实测/有来源的出手几何与 backspin 之后，一致率才可作为经验结论引用
+- [ ] 处理 `valid_data_3D.csv` 的假设问题：核对/剔除 IDs 301–335（源坐标/单位、`y_m` 映射和 `made` 为预设），
+      把 `valid_data_2D.csv` 的合成参数换成实测/有来源的出手几何与 backspin 之后，一致率才可作为经验结论引用
 - [ ] 为每条 shot 补齐 `backspin` 与出手三分量（60 fps 逐帧追踪或来源标注），再跑
       `validation.py` 得到真实一致率 + 置信区间 + kappa
 - [ ] 用文献速率标定三分球出手速度后重跑三分扫描，使罚球/三分峰值水平可直接比较

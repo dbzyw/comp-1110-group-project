@@ -14,7 +14,7 @@
 | [`03_rattle_in.gif`](demo_gifs/03_rattle_in.gif) | 2.00 / 36 / 23 / 8.70 / 4.60 | **RATTLE-IN** | 弹筐：球先后磕筐沿反弹（白方框标记）最终滚进 |
 | [`04_short_miss.gif`](demo_gifs/04_short_miss.gif) | 2.00 / 51 / 23 / 6.00 / 4.60 | miss（well short） | 力量太小：`x` 从未到达 4.60 m 的筐面平面（`plane_h` 为空），未碰任何东西直接落地 |
 | [`05_air_off.gif`](demo_gifs/05_air_off.gif) | 2.00 / 51 / 23 / 7.90 / 4.60（AIR OFF） | **BANK-IN** | 同 01 的参数但关掉空气：没有阻力/升力时同样的出手变成打板进——直观展示空气对命中与否的影响 |
-| [`06_three_pointer.gif`](demo_gifs/06_three_pointer.gif) | 2.00 / 45 / 23 / 9.46 / 6.75 | **SWISH** | 三分线（6.75 m）：需要明显更大的出手速度（9.46 vs 7.90 m/s），最优仰角从 51° 降到 45°——与 3D 扫描"三分最优角下移约 7°"的结论方向一致 |
+| [`06_three_pointer.gif`](demo_gifs/06_three_pointer.gif) | 2.00 / 45 / 23 / 9.46 / 6.75 | **SWISH** | 2D 演示预设三分场景（6.75 m）：需要更大的出手速度（9.46 vs 7.90 m/s），选用 45° 弧线。该演示参数不代表 2D 扫描最优值，也不与 3D 参数扫描的峰值角度直接比较。 |
 
 ## 预览（GitHub / VS Code 内直接渲染）
 

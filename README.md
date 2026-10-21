@@ -32,7 +32,7 @@
 
 ## 2. 快速开始（免安装版）
 
-不想装 Python 的同学，直接下载仓库根目录的 [`basketball_shot_2d.exe`](basketball_shot_2d.exe)（2D 交互式模拟器的 PyInstaller 打包版），双击即可运行，无需任何依赖。
+不想装 Python 的同学，直接下载仓库根目录的 [`basketball_shot_2d.exe`](basketball_shot_2d.exe)（2D 交互式模拟器的 PyInstaller 打包版），双击即可运行，无需任何依赖。效果预览见 [SIMULATION_2D_DEMOS.md](SIMULATION_2D_DEMOS.md) 中的 6 个演示 GIF（空心、打板、弹筐、三分等典型场景）。
 
 ## 3. 核心特性
 

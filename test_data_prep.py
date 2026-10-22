@@ -21,6 +21,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import data_validation.data_prep as prep
 from data_validation.data_prep import _estimate_release_height, _velocity_from_speed_and_angle
 
 
@@ -50,3 +51,7 @@ class ReleaseHeightEstimationTests(unittest.TestCase):
             _velocity_from_speed_and_angle(0.0, 45.0, 2)
         with self.assertRaisesRegex(ValueError, "release angle must be between"):
             _velocity_from_speed_and_angle(7.0, 90.0, 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

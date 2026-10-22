@@ -190,6 +190,7 @@ def run_validation(csv_path="dummy_data.csv", z=1.96):
 
     agree = 0
     tp = fp = fn = tn = 0
+    n_actual_made = 0
     rows = []
     errors = []            # (shot_id, 异常信息)
 
@@ -201,30 +202,34 @@ def run_validation(csv_path="dummy_data.csv", z=1.96):
         try:
             pred_outcome, pred_bin = predict(s)
         except ValueError as e:
-            # 参数非法 (如出手点 y<0、dt 越界): 记为 error, 二分类算不一致
-            pred_outcome, pred_bin = "error", "miss"
+            # 参数非法 (如出手点 y<0、dt 越界): 记为 error, 二分类算不一致;
+            # pred_bin=None 表示"无有效二分类预测", 因为 None 与 "made"/"miss"
+            # 都不相等, 该行一定被计为"不一致", 而不会被误记为 tn 等正确单元。
+            pred_outcome, pred_bin = "error", None
             errors.append((s["shot_id"], str(e)))
         actual_outcome = s["actual_outcome"]
         actual_bin = _to_binary(actual_outcome)
+        n_actual_made += 1 if actual_bin == "made" else 0
 
         match = (pred_bin == actual_bin)
         agree += 1 if match else 0
         rows.append((s["shot_id"], actual_outcome, pred_outcome, match))
 
-        if actual_bin == "made" and pred_bin == "made":
-            tp += 1
-        elif actual_bin == "made" and pred_bin == "miss":
-            fn += 1
-        elif actual_bin == "miss" and pred_bin == "made":
-            fp += 1
-        else:
-            tn += 1
+        if pred_bin is not None:
+            if actual_bin == "made" and pred_bin == "made":
+                tp += 1
+            elif actual_bin == "made" and pred_bin == "miss":
+                fn += 1
+            elif actual_bin == "miss" and pred_bin == "made":
+                fp += 1
+            else:
+                tn += 1
 
-        a_c = _canonical(actual_outcome)
-        p_c = _canonical(pred_outcome)
-        if a_c is not None and p_c is not None:
-            cm[a_c][p_c] += 1
-            mc_used += 1
+            a_c = _canonical(actual_outcome)
+            p_c = _canonical(pred_outcome)
+            if a_c is not None and p_c is not None:
+                cm[a_c][p_c] += 1
+                mc_used += 1
 
     accuracy = agree / n
     disagreement = 1.0 - accuracy
@@ -239,7 +244,7 @@ def run_validation(csv_path="dummy_data.csv", z=1.96):
     mcc = ((tp * tn - fp * fn) / denom) if denom > 0.0 else 0.0
 
     # 基线: 无信息率 (多数类) + 偶然一致 + Cohen's kappa
-    p_actual_made = (tp + fn) / n
+    p_actual_made = n_actual_made / n
     p_pred_made = (tp + fp) / n
     p_chance = p_actual_made * p_pred_made + (1.0 - p_actual_made) * (1.0 - p_pred_made)
     kappa = (accuracy - p_chance) / (1.0 - p_chance) if p_chance < 1.0 else 0.0

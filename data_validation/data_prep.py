@@ -72,7 +72,7 @@ def _unit_scale(header):
         return 0.001
     if any(unit in name for unit in ("feet", "foot", "_ft", "(ft)")):
         return 0.3048
-    if any(unit in name for unit in ("inch", "_in", "(in)")):
+    if any(unit in name for unit in ("inch", "(in)")) or name.endswith("_in"):
         return 0.0254
     return 1.0
 
@@ -91,7 +91,8 @@ def _parse_finite_float(value, field, row_number):
 
 def _map_outcome(value, row_number):
     label = str(value).strip().lower()
-    if label in {"1", "1.0", "true", "yes", "made", "make", "hit", "in", "swish"}:
+    if label in {"1", "1.0", "true", "yes", "made", "make", "hit", "in", "swish",
+                 "rim-in", "board-in", "bounce-in"}:
         return "made"
     if label in {"0", "0.0", "false", "no", "miss", "missed", "out"}:
         return "miss"
@@ -182,7 +183,7 @@ def _read_rows(input_path):
         )
         outcome_column = _find_column(
             reader.fieldnames,
-            {"madeshots", "shotresult", "shotaccuracy", "outcome", "result"},
+            {"madeshot", "shotresult", "shotaccuracy", "outcome", "result"},
             "shot outcome",
         )
         height_column = next(
@@ -231,12 +232,6 @@ def _read_rows(input_path):
             ),
             None,
         )
-        if bool(speed_column) != bool(release_angle_column):
-            raise ValueError(
-                "Source must provide both shot speed and release angle, or neither. "
-                f"Found speed={speed_column!r}, angle={release_angle_column!r}."
-            )
-
         distance_scale = _unit_scale(distance_column)
         height_scale = _unit_scale(height_column) if height_column else 1.0
         player_height_scale = (

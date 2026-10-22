@@ -221,6 +221,9 @@ def fit_segments(res):
         # each branch is monotonic in x now; flip so the fit runs forward
         if xs[-1] < xs[0]:
             xs, ys = xs[::-1], ys[::-1]
+        # nearly-constant x: polyfit is ill-conditioned -> skip (matches fit_segments_2d)
+        if xs[-1] - xs[0] < 1e-9:
+            continue
         a2, a1, a0 = np.polyfit(xs, ys, 2)
         segs.append(dict(a2=float(a2), a1=float(a1), a0=float(a0),
                          x0=float(xs[0]), x1=float(xs[-1]),

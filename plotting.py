@@ -231,7 +231,7 @@ def vacuum_launch_angle(x0, y0, x1, y1, v):
     """
     重力-only 抛体从 (x0, y0) 以速率 v 命中 (x1, y1) 所需仰角 [deg]。
     返回高弧线解 (角度较大的那个)。
-    改进版: v <= 0 显式报错 (原版 ZeroDivisionError)。
+    改进版: v <= 0 或 x1 == x0 (同一竖直线) 显式报错, 而不是 ZeroDivisionError/NaN。
     """
     v = float(v)
     if v <= 0.0:
@@ -239,6 +239,9 @@ def vacuum_launch_angle(x0, y0, x1, y1, v):
     dx = x1 - x0
     dy = y1 - y0
     a = 0.5 * G * dx ** 2 / v ** 2
+    if a == 0.0:
+        raise ValueError(
+            f"x1 == x0 (dx = {dx!r}): 目标点与出手点在同一竖直线上, 无真空抛物线解")
     b = -dx
     c = dy + a
     disc = b ** 2 - 4.0 * a * c

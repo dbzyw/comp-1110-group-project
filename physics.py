@@ -384,7 +384,10 @@ def ideal_arc_coeffs_2d(h0: float, angle_deg: float, v: float) -> tuple[float, f
     c = math.cos(th)
     if abs(c) < 1e-12:
         raise ValueError(f"angle_deg = {angle_deg}° is vertical (cos ~ 0); no finite parabola")
-    return math.tan(th), G_2D / (2.0 * v * v * c * c)
+    denom = 2.0 * v * v * c * c
+    if denom == 0.0:
+        raise ValueError(f"v = {v!r} is too small; the vacuum parabola a2 diverges")
+    return math.tan(th), G_2D / denom
 
 
 def ideal_parabola_2d(h0: float, angle_deg: float, v: float, n: int = 400) -> tuple[np.ndarray, np.ndarray, float, float, float]:
@@ -412,6 +415,10 @@ def ideal_parabola_2d(h0: float, angle_deg: float, v: float, n: int = 400) -> tu
             f"no landing root: h0={h0!r} below the landing plane and the arc "
             f"never returns to y={RELEASE_FLOOR_2D}")
     x_land = (slope + math.sqrt(disc)) / (2.0 * a2)
+    if x_land <= 0.0:
+        raise ValueError(
+            f"no positive landing root: h0={h0!r} below the landing plane and "
+            f"the arc never returns forward to y={RELEASE_FLOOR_2D}")
     xs = np.linspace(0.0, x_land, n)
     return xs, h0 + slope * xs - a2 * xs * xs, slope, a2, x_land
 

@@ -409,8 +409,13 @@ def run_sweep_mp(out_csv="data.csv", seed=0, workers=None,
     angles_deg = _as_1d_grid("angles_deg", angles_deg)
     backspins = _as_1d_grid("backspins", backspins)
     release_pos = np.asarray(release_pos, dtype=float)
-    if release_pos.shape != (3,):
-        raise ValueError(f"release_pos must have shape (3,), got {release_pos.shape}")
+    if release_pos.shape != (3,) or not np.all(np.isfinite(release_pos)):
+        raise ValueError(f"release_pos must be a finite shape (3,) vector, got {release_pos!r}")
+    speed = float(speed)
+    if not np.isfinite(speed) or speed <= 0.0:
+        raise ValueError(f"speed must be a finite positive number, got {speed!r}")
+    if not int(JITTER_SHOTS) > 0:
+        raise ValueError(f"JITTER_SHOTS must be > 0, got {JITTER_SHOTS!r}")
     workers = int(workers or os.cpu_count() or 1)
     if workers < 1:
         raise ValueError(f"workers must be >= 1, got {workers!r}")
@@ -777,12 +782,17 @@ def run_sweep_2d(out_csv="data_2d.csv", *, h0=2.0, dist=FREE_THROW_2D,
                              angles_deg if angles_deg is not None else _2D_ANGLES)
     backspins = _as_1d_grid("backspins",
                             backspins if backspins is not None else _2D_BACKSPINS)
-    vs = (np.asarray(speeds, dtype=float).reshape(-1) if speeds is not None
-          else np.linspace(v_lo, v_hi, int(n_speed)))
-    if vs.size == 0 or not np.all(np.isfinite(vs)):
-        raise ValueError("speed 网格 must be non-empty and finite")
-    if int(n_speed) < 2:
-        raise ValueError(f"n_speed must be >= 2, got {n_speed!r}")
+    if speeds is None:
+        n_speed = int(n_speed)
+        if n_speed < 2:
+            raise ValueError(f"n_speed must be >= 2, got {n_speed!r}")
+        vs = np.linspace(v_lo, v_hi, n_speed)
+    else:
+        vs = np.asarray(speeds, dtype=float).reshape(-1)
+        if vs.size < 2:
+            raise ValueError(f"speeds must contain at least 2 values, got {vs.size}")
+    if not np.all(np.isfinite(vs)):
+        raise ValueError("speed 网格 must be finite")
     h0 = float(h0)
     dist = float(dist)
     if not (np.isfinite(h0) and np.isfinite(dist)) or h0 <= 0.0 or dist <= 0.0:

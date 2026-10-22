@@ -1,5 +1,9 @@
 # Basketball shot model validation results - 2D assumed straight-on dataset
 
+> Historical snapshot from before the NBA geometry/ball-parameter alignment.
+> Its per-shot predictions and metrics have not been rerun for the current
+> physics constants; the input data is assumption-generated, not empirical.
+
 - Input: `data_validation/valid_data_2D.csv` (300 records).
 - Validation implementation: `validation.py` calling the existing `simulate_shot()` model; model constants were not tuned.
 - Velocity construction: each raw row supplies `Shot_Speed_m_s` and `Release_Angle_deg`; the converter resolves `v0x = speed * cos(angle)` and `v0y = speed * sin(angle)`, with `release_z = v0z = 0`.

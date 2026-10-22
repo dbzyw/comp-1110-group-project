@@ -2,19 +2,22 @@ import json, math, os, sys
 import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from physics import integrate, release_velocity, BALL_RADIUS
+from collision import RIM_HEIGHT
 from simulation import simulate_shot
+from data_validation.data_prep import DEFAULT_BACKSPIN_RAD_S
 
 FPS = 60.0
 HERE = os.path.dirname(os.path.abspath(__file__))
+RELEASE_HEIGHT = 2.0
 DT_S = 1e-3      # 正式轨迹
 DT_Q = 2e-3      # 快速粗扫用
 
-def try_shot(dist, angle, speed, spin=23.0, dt=DT_Q):
-    r = simulate_shot(np.array([-dist, 2.0, 0.0]), release_velocity(speed, angle),
+def try_shot(dist, angle, speed, spin=DEFAULT_BACKSPIN_RAD_S, dt=DT_Q):
+    r = simulate_shot(np.array([-dist, RELEASE_HEIGHT, 0.0]), release_velocity(speed, angle),
                       spin, dt=dt)
     return r
 
-def coarse_sweep(kind, dists, angles, speeds, spin=23.0):
+def coarse_sweep(kind, dists, angles, speeds, spin=DEFAULT_BACKSPIN_RAD_S):
     hits = []
     for dist in dists:
         for a in angles:
@@ -43,9 +46,9 @@ def refine(s):
     nc, a, v, r = best
     return dict(dist=s["dist"], angle=float(a), speed=float(v), spin=s["spin"], r=r)
 
-def full_shot(dist, angle, speed, spin=23.0):
+def full_shot(dist, angle, speed, spin=DEFAULT_BACKSPIN_RAD_S):
     v0 = release_velocity(speed, angle)
-    res = simulate_shot(np.array([-dist, 2.0, 0.0]), v0, spin, dt=DT_S)
+    res = simulate_shot(np.array([-dist, RELEASE_HEIGHT, 0.0]), v0, spin, dt=DT_S)
     t, st = res["times"], res["states"]
     made = res["outcome"] in ("swish", "rim-in", "board-in")
     if made:
@@ -87,16 +90,22 @@ for kind, s in plan.items():
     print(f"== {kind} == dist={rs['dist']:.2f} angle={rs['angle']:.2f} speed={rs['speed']:.2f} "
           f"-> {res['outcome']} contacts={res['contacts']} reason={res['reason']}")
     dump_csv(os.path.join(HERE, f"traj_{kind}.csv"), t, st)
-    out[kind] = dict(dist_to_board=rs["dist"], angle=rs["angle"], speed=rs["speed"],
+    out[kind] = dict(dist_to_board=rs["dist"], release_height=RELEASE_HEIGHT,
+                     angle=rs["angle"], speed=rs["speed"],
                      spin=rs["spin"], outcome=res["outcome"],
                      contacts=[str(x) for x in res["contacts"]],
                      reason=res["reason"], made=bool(made),
                      t_end=float(t[-1]), points=int(len(t)),
                      score_frame=None)
-    # 进球时刻帧 (相对本段 0-based, 用正式 dt 的 times 里首次穿筐)
+    # Interpolate the downward crossing so score stills target the actual hoop-plane frame.
     if made:
-        sm = np.where((st[1:,1] <= 3.05) & (st[:-1,1] > 3.05))[0]
-        if len(sm): out[kind]["score_frame"] = float(t[sm[0]] * FPS + 1.0)
+        crossings = np.where((st[1:, 1] <= RIM_HEIGHT) & (st[:-1, 1] > RIM_HEIGHT))[0]
+        if not len(crossings):
+            raise RuntimeError(f"{kind} was classified as made but has no downward hoop-plane crossing")
+        i = int(crossings[0])
+        fraction = (st[i, 1] - RIM_HEIGHT) / (st[i, 1] - st[i + 1, 1])
+        crossing_time = t[i] + fraction * (t[i + 1] - t[i])
+        out[kind]["score_frame"] = float(crossing_time * FPS + 1.0)
 
 with open(os.path.join(HERE, "shots.json"), "w", encoding="utf-8") as fo:
     json.dump(out, fo, indent=2, ensure_ascii=False)

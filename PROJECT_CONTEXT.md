@@ -11,27 +11,35 @@
 （`basketball_shot_2d.py`），其库化版本（`*_2D`/`*_2d`）已并入 `physics.py` / `collision.py` /
 `simulation.py` / `experiment.py`，两套模型并存于同一文件、绝不可混用常数或结论（见 README §4）。
 
+### Blender 的职责与预测流程
+
+- **预测由 Python 3D 物理引擎完成**：`simulation.simulate_shot()`根据释放位置、速度和后旋积分轨迹；若球心向下穿过 NBA 筐顶平面 `y = 3.048 m` 且水平距开口中心不超过 `RIM_RADIUS - BALL_RADIUS ≈ 0.10935 m`，则判为 made，否则判为 miss。made 再根据接触历史细分为 `swish` / `rim-in` / `board-in`。`validation.py`对符合 CSV 规范且带观测标签的记录调用该模拟并比较结果。
+- **Blender 是 3D 可视化工具，不会自行做物理预测或验证**。它呈现由模拟算出的轨迹和结局。`blender_3d/find_shots.py`调用物理引擎搜寻三种演示用的 made 轨迹，输出 `traj_*.csv` 和 `shots.json`；`build_blender.py`读取这些文件，生成关键帧、`.blend` 场景、静帧和可选 MP4。当前场景没有 miss 演示。
+- 对新初始条件，直接调用 `simulation.simulate_shot()`获得预测轨迹与结局；需要与已记录结果比较时，使用带 `actual_outcome` 的 CSV 运行 `python validation.py <shots.csv>`。若需要 Blender 动画，必须再把目标预测轨迹提供给 Blender 渲染流程。当前 `build_blender.py`只消费预制的三组命中演示轨迹，并不直接读取任意验证 CSV 或输出，因此不能把现有 Blender 场景当作任意 CSV 的自动可视化接口。
+- 从仓库根目录重建当前演示：`python blender_3d\find_shots.py`，再运行 `blender -b -noaudio --python blender_3d\build_blender.py`。Blender 5.x 用于脚本构景与渲染；MP4 合成还需要 `ffmpeg` 在 `PATH` 中。
+
 ## 2. 核心物理设定
 
 ### 2.1 3D 主流程
 
 **坐标系（右手系，SI 单位）**
 - `x` 从投手指向篮筐；`y` 竖直向上；`z` 侧向。
-- 篮板在 `x = 0`，投手在 `-x` 侧；筐心 `RIM_CENTER = (-0.375, 3.05, 0)`。
+- 篮板正面在 `x = 0`，投手在 `-x` 侧；NBA 篮筐开口中心 `(-0.381, 3.048, 0)`，钢管中心线位于管半径以内。
 
 **后旋方向定义**
 - 纯后旋取 `ω = (0, 0, +ω)`；`ω × v` 的 `y` 分量为正 → 产生向上升力。
 
 **NBA 场地常数（collision.py）**
-- `RIM_HEIGHT = 3.05 m`，`RIM_DIAMETER = 0.45 m`（`RIM_RADIUS = 0.225 m`）
-- `RIM_TO_BOARD = 0.375 m`（筐心到篮板面）
-- 篮板：宽 1.8 m、高 1.05 m、下沿 2.9 m（竖直平面 `x = 0`）
+- `RIM_HEIGHT = 3.048 m`（10 ft 筐顶高度）；NBA 净开口直径 `0.4572 m`（18 in），半径 `0.2286 m`
+- 钢管直径取 `0.018 m`（FIBA 16–20 mm 规格区间中点）；`RIM_CENTERLINE_RADIUS = 0.2376 m`
+- 开口中心到篮板正面 `RIM_TO_BOARD = 0.381 m`（6 in 板面间隙 + 9 in 开口半径）
+- NBA 篮板：宽 1.8288 m、高 1.0668 m、下沿 2.8956 m（竖直平面 `x = 0`）；Blender 板厚取 12.7 mm
 - `RESTITUTION e = 0.7`（分面参数 `BACKBOARD_RESTITUTION` / `RIM_RESTITUTION`，默认同为 0.7；
   `TANGENTIAL_RETENTION = 1.0` 默认无切向损失）
 
 **物理常数（physics.py）**
-- `G = 9.81`，`RHO_AIR = 1.225`，`C_D = 0.50`，`C_L0 = 1.00`
-- `BALL_MASS = 0.624 kg`，`BALL_RADIUS = 0.12 m`
+- `G = 9.80665`，`RHO_AIR = 1.225`，`C_D = 0.50`，`C_L0 = 1.00`
+- `BALL_MASS = 22 oz ≈ 0.62369 kg`，`BALL_RADIUS = 29.5 in / (2π) ≈ 0.11925 m`
 
 **三力**
 - 重力：`F_g = (0, -m·g, 0)`
@@ -40,7 +48,7 @@
   （等价于升力系数形式，`C_L = C_L0·R|ω|/|v|`）
 
 **得分判据**
-- 球心向下穿过 `y = 3.05` 平面，且水平距筐心 `<= RIM_RADIUS - BALL_RADIUS = 0.105 m`
+- 球心向下穿过 `y = 3.048` 平面，且水平距开口中心 `<= RIM_RADIUS - BALL_RADIUS ≈ 0.10935 m`
 - 从未碰筐/篮板 → `swish`；只碰筐 → `rim-in`；碰过篮板 → `board-in`；否则 `miss`。
 - 结局按 `contacts` 碰撞序列细分，匹配计划书中的 4 类结局设定。
 
@@ -99,8 +107,8 @@
 - `batch_simulate(positions(N,3), velocities(N,3), backspin_rate) -> made/swish/rim_in/board_in`
 - `batch_simulate_2d(...)`、`find_band_2d`、`run_sweep_2d`（每格最宽必中速度窗口统计）
 - `run_sweep(out_csv="data.csv", seed=0)`；`run_three_point_sweep`；`run_sweep_mp`（多进程）
-- 3D 网格：罚球 角度 `30–70°` × 后旋 `0–60 rad/s`（各 17 点），三分球 角度 `36–60°` × 后旋 `0–60`（各 17 点），
-  每格 100 次抖动（σ 角度 1°、速率 0.1 m/s）；罚球 7.5 m/s @ 4.57 m，三分 9.5 m/s @ 6.75 m
+- 3D 网格：罚球角度 `30–70°` × 后旋 `0–60 rad/s`（各 17 点），三分球角度 `36–60°` × 后旋 `0–60`（各 17 点），
+  每格 100 次抖动（σ 角度 1°、速率 0.1 m/s）；罚球 7.5 m/s @ 15 ft from board face，三分 9.5 m/s @ NBA arc apex 23 ft 9 in from rim centre
 - CSV 列：`angle, backspin, p_make, p_swish, p_rim_in, p_board_in` + 扫描配置元数据列
   （`rim_distance_m`、`nominal_speed_m_s`、`seed`、抖动 σ、网格范围等，每行可追溯）
 - 2D 网格：`_2D_ANGLES = 30–70°`（17）、`_2D_BACKSPINS = 0–40`（17，与 UI 滑块上限一致），
@@ -151,8 +159,8 @@
   由 `data_prep.py` 以 straight-on 假设生成（`release_z = v0z = 0`）；`valid_data_3D.csv` 有
   35 行暂定 3D 输入，正 `x_m` 已取负且 `z_m`/`y_m` 暂映射为高度/侧向位置。两份 CSV 均可被
   `validation.py` 解析，但并非实测验证；字段规范见 `data_validation/DATA_SPECIFICATION.md`。
-- 独立结果：2D 近似使用 source speed/angle 后为 153/300 agreement（51.00%，Wilson 95% CI [45.37%, 56.61%]）；暂定 3D
-  输入为 0/35 agreement（0.00%，Wilson 95% CI [0.00%, 9.89%]）。两者均不应视为经验结论。
+- 历史验证报告（NBA 几何/球参数调整前）：2D 近似使用 source speed/angle 后为 153/300 agreement，
+  暂定 3D 输入为 0/35 agreement。由于物理常数现已更新，两份报告不是当前模型结果；两者也均不应视为经验结论。
 
 ## 5. To-Do（下一步）
 

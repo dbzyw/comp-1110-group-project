@@ -324,7 +324,7 @@ def simulate_shot_pair(x0, y0, v0, backspin, rim_x=RIM_CENTER[0], rim_y=RIM_HEIG
 
 def plot_trajectory_comparison(out_png="trajectory_comparison.png", dpi=300):
     """两条轨迹: 真空瞄准(命中筐心) vs 真实(阻力+后旋, 偏低), 并标注偏差。"""
-    rim_x, rim_y = RIM_CENTER[0], RIM_HEIGHT      # (-0.375, 3.05)
+    rim_x, rim_y = RIM_CENTER[0], RIM_HEIGHT      # NBA opening centre / top plane (-0.381, 3.048)
 
     ang_vac, x_vac, y_vac, x_real, y_real, y_at_rim, deviation_cm = \
         simulate_shot_pair(X0, Y0, V0, BACKSPIN, rim_x, rim_y)

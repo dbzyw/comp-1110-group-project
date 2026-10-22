@@ -11,10 +11,10 @@ simulation.py — 3D 投篮模拟循环与独立 2D 演示模拟
     * 3D 与 2D 功能统一从 physics.py 和 collision.py 导入，避免重复模块
 
 坐标系与几何 (与 physics.py / collision.py 一致):
-    x 从投手指向篮筐, y 向上, z 侧向; 篮板在 x = 0, 筐心在 (-0.375, 3.05, 0)。
+    x 从投手指向篮筐, y 向上, z 侧向; 篮板在 x = 0, 筐沿最高点为 3.048 m。
 
 得分规则:
-    Swish    (空心)   : 从未碰筐/篮板, 球心向下穿过 y = 3.05 m 平面时
+    Swish    (空心)   : 从未碰筐/篮板, 球心向下穿过 NBA 筐顶 y = 3.048 m 平面时
                         水平落在筐洞内。
     Rim-in   (弹框进) : 只碰过篮筐(未碰篮板), 之后最终向下穿过筐洞。
     Board-in (打板进) : 碰过篮板(可能也碰过筐), 之后最终向下穿过筐洞。
@@ -29,9 +29,7 @@ from physics import rk4_step, spin_vector, release_velocity, BALL_RADIUS
 from collision import (detect_all, resolve_contacts,
                        RIM_HEIGHT, RIM_RADIUS, RIM_CENTER, BACKBOARD_X)
 
-# 得分半径: 球心能“不碰筐”地穿过筐洞的最大水平偏移 [m]
-# = 篮筐半径 0.225 - 球半径 0.12 = 0.105
-# 若想用更宽松的“球心在筐半径 0.225 m 内就算进”判据, 改为 RIM_RADIUS。
+# 球心穿过 NBA 篮筐净开口的最大水平偏移 [m]。
 SCORE_RADIUS = RIM_RADIUS - BALL_RADIUS
 
 # ---------------------------------------------------------------------------
@@ -164,7 +162,7 @@ def simulate_shot(release_pos, release_vel, backspin_rate,
             reason = "hit floor"
             break
 
-        # 2) 得分: 向下穿过筐面 (y = 3.05) 且水平落在筐洞内
+        # 2) 得分: 向下穿过 NBA 筐顶平面 (RIM_HEIGHT) 且水平落在净开口内
         if prev[1] > RIM_HEIGHT and state[1] <= RIM_HEIGHT:
             denom = prev[1] - state[1]
             frac = (prev[1] - RIM_HEIGHT) / denom if denom != 0.0 else 1.0
@@ -491,7 +489,7 @@ def readout_2d(res, h0: float, angle_deg: float, spin: float, v: float,
 # 测试: 一次标准罚球
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    FREE_THROW_DISTANCE = 4.57   # 罚球线到篮板距离 [m] (NBA)
+    FREE_THROW_DISTANCE = 15.0 * 0.3048  # NBA free-throw line to backboard [m]
     RELEASE_HEIGHT = 2.0         # 出手高度 [m]
     SPEED = 7.5                  # 出手速率 [m/s]
     ANGLE_DEG = 51.0             # 出手仰角 [deg]

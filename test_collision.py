@@ -12,7 +12,7 @@ class BackboardTests(unittest.TestCase):
         hit = collision.detect_backboard([-0.05, 3.2, 0.0])
         self.assertIsNotNone(hit)
         np.testing.assert_allclose(hit.normal, [-1.0, 0.0, 0.0])
-        self.assertAlmostEqual(hit.penetration, 0.07)
+        self.assertAlmostEqual(hit.penetration, collision.BALL_RADIUS - 0.05)
 
     def test_ball_can_touch_board_edge_with_centre_outside_rectangle(self):
         # The centre is 5 cm below the board, but the sphere overlaps its edge.
@@ -64,23 +64,24 @@ class BackboardTests(unittest.TestCase):
 
 class RimTests(unittest.TestCase):
     def test_axis_distance_is_not_mistaken_for_contact(self):
-        # On the axis, the nearest distance to a 0.225 m ring is 0.225 m,
-        # larger than the 0.12 m ball radius.
+        # The opening centre stays clear of the finite-radius steel rim tube.
         self.assertIsNone(collision.detect_rim(collision.RIM_CENTER))
 
     def test_ring_contact(self):
-        point = [collision.RIM_CENTER[0] + collision.RIM_RADIUS,
-                 collision.RIM_HEIGHT, collision.RIM_CENTER[2]]
+        point = [collision.RIM_CENTER[0] + collision.RIM_CENTERLINE_RADIUS,
+                 collision.RIM_CENTER[1], collision.RIM_CENTER[2]]
         hit = collision.detect_rim(point)
         self.assertIsNotNone(hit)
-        self.assertAlmostEqual(hit.penetration, collision.BALL_RADIUS)
+        self.assertAlmostEqual(
+            hit.penetration, collision.BALL_RADIUS + collision.RIM_TUBE_RADIUS
+        )
         np.testing.assert_allclose(hit.normal, [1.0, 0.0, 0.0])
 
     def test_batch_matches_scalar(self):
         points = np.array([
             collision.RIM_CENTER,
-            [collision.RIM_CENTER[0] + collision.RIM_RADIUS,
-             collision.RIM_HEIGHT, collision.RIM_CENTER[2]],
+            [collision.RIM_CENTER[0] + collision.RIM_CENTERLINE_RADIUS,
+             collision.RIM_CENTER[1], collision.RIM_CENTER[2]],
             [0.0, 4.0, 0.0],
         ])
         hits, normals, penetrations = collision.detect_rim_batch(points)
@@ -96,7 +97,10 @@ class RimTests(unittest.TestCase):
         self.assertIsNone(collision.detect_rim(center, ball_radius=0.12))
         larger_ball_contact = collision.detect_rim(center, ball_radius=0.23)
         self.assertIsNotNone(larger_ball_contact)
-        self.assertAlmostEqual(larger_ball_contact.penetration, 0.23 - 0.225)
+        self.assertAlmostEqual(
+            larger_ball_contact.penetration,
+            0.23 + collision.RIM_TUBE_RADIUS - collision.RIM_CENTERLINE_RADIUS,
+        )
 
     def test_rim_batch_accepts_custom_ball_radius(self):
         points = np.array([collision.RIM_CENTER, [0.0, 4.0, 0.0]])
@@ -168,8 +172,8 @@ class ResponseTests(unittest.TestCase):
 
         board_hit = collision.detect_backboard([-0.05, 3.2, 0.0])
         rim_hit = collision.detect_rim([
-            collision.RIM_CENTER[0] + collision.RIM_RADIUS,
-            collision.RIM_HEIGHT,
+            collision.RIM_CENTER[0] + collision.RIM_CENTERLINE_RADIUS,
+            collision.RIM_CENTER[1],
             collision.RIM_CENTER[2],
         ])
         with patch.object(collision, "BACKBOARD_RESTITUTION", 0.2), \
@@ -178,8 +182,8 @@ class ResponseTests(unittest.TestCase):
                 [-0.05, 3.2, 0.0], [5.0, 0.0, 0.0], board_hit
             )
             _, rim_velocity = collision.resolve(
-                [collision.RIM_CENTER[0] + collision.RIM_RADIUS,
-                 collision.RIM_HEIGHT, collision.RIM_CENTER[2]],
+                [collision.RIM_CENTER[0] + collision.RIM_CENTERLINE_RADIUS,
+                     collision.RIM_CENTER[1], collision.RIM_CENTER[2]],
                 [-5.0, 0.0, 0.0], rim_hit,
             )
         self.assertAlmostEqual(board_velocity[0], -1.0)

@@ -34,8 +34,8 @@ physics.py — 3D 篮球飞行物理与 RK4 核心，并提供独立的 2D 演�
 飞行过程中自旋保持恒定 (无自旋衰减), 符合项目范围界定。
 
 两套 API 的常数互不通用 (详见 physics.py 模块文档):
-    3D:  G=9.81, RHO_AIR=1.225, C_D=0.50, C_L0=1.00, BALL_MASS=0.624 kg,
-         BALL_RADIUS=0.12 m
+    3D:  G=9.80665, RHO_AIR=1.225, C_D=0.50, C_L0=1.00,
+         BALL_MASS=0.62369 kg, BALL_RADIUS=0.11925 m (NBA men's ball)
     2D:  G_2D=9.81, RHO_AIR_2D=1.204, C_D_2D=0.47, C_L_2D=0.20(固定),
          BALL_MASS_2D=0.60 kg, RIM_RADIUS_2D=0.2287 m
 """
@@ -47,12 +47,12 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # 物理常数 (与 physics.py 完全相同 — 常数冻结, 不可随扫描结果调整)
 # ---------------------------------------------------------------------------
-G           = 9.81          # 重力加速度                      [m/s^2]
+G           = 9.80665       # standard gravity                 [m/s^2]
 RHO_AIR     = 1.225         # 空气密度 (海平面)               [kg/m^3]
 C_D         = 0.50          # 球的阻力系数                    [-]
 C_L0        = 1.00          # 马格努斯系数                    [-]
-BALL_MASS   = 0.624         # 标准篮球质量                    [kg]
-BALL_RADIUS = 0.12          # 篮球半径                        [m]
+BALL_MASS   = 22.0 * 0.028349523125  # NBA men's ball mass (22 oz) [kg]
+BALL_RADIUS = 29.5 * 0.0254 / (2.0 * np.pi)  # 29.5-in circumference [m]
 
 BALL_AREA = np.pi * BALL_RADIUS ** 2   # 迎风截面积 [m^2]
 
@@ -514,7 +514,7 @@ if __name__ == "__main__":
     print(f"升力系数 C_L_2D   = {C_L_2D} (固定)     (3D 用 C_L0={C_L0})")
     print(f"BD_2D            = {DRAG_PARAM_2D:.5f} /m")
     print(f"BM_2D            = {MAGNUS_PARAM_2D:.6e}")
-    print(f"RIM_RADIUS_2D    = {RIM_RADIUS_2D} m   (3D 用 {0.225} m)")
+    print(f"RIM_RADIUS_2D    = {RIM_RADIUS_2D} m")
 
     h0, ang, spin, v, dist = 2.00, 51.0, 23.0, 7.90, FREE_THROW_2D
     drag, magnus, wz = air_load_2d(v, spin, ang)

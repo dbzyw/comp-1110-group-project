@@ -58,7 +58,7 @@
 - **碰撞检测**：篮板（平面-球碰撞）与篮筐（圆环-球碰撞），支持球心在矩形外时的篮板边缘/角落接触，支持批量检测与穿透位置校正——原理与改进方向见 [Collision.md](Collision.md)
 - **恢复系数**：碰撞使用恢复系数反弹（法向 `e = 0.7`；3D 默认切向保留比例 1.0，2D 层切向乘 0.85）
 - **命中结局细分**：3D 流程按碰撞历史输出 `swish` / `rim-in` / `board-in` / `miss`；2D 流程输出 `SWISH` / `BANK-IN` / `RATTLE-IN` 与各种 miss 描述，两套名称可通过 `collision.canonical_outcome_2d()` 归一化对接
-- **Blender 3D 可视化**（`blender_3d/`）：用 Blender 5.x 把 3D 主流程的飞行（后旋马格升力 + 二次空气阻力 + 碰撞恢复糰数 e=0.7）烘焙成 60 fps 逐帧动画，场景含 2.00 m 人物、3.05 m 篮篘与節板；产物 `out/shot3d.mp4`（1280×720）与 `basketball_shot3d.blend`，连续演出 swish / board-in / rim-in 三发；场景与渲染脚本见 § 5.4
+- **Blender 3D 可视化**（`blender_3d/`）：用 Blender 5.x 把 3D 主流程的飞行（后旋马格努斯升力 + 二次空气阻力 + 碰撞恢复系数 e=0.7）烘焙成 60 fps 逐帧动画，场景含 2.00 m 人物、NBA 3.048 m 筐顶与标准尺寸篮板；产物 `out/shot3d.mp4`（1280×720）与 `basketball_shot3d.blend`，连续演出 swish / board-in / rim-in 三发；场景与渲染脚本见 § 5.4
 - **交互式 HTML 轨迹浏览器**（`basketball_interactive.html`）：Plotly 生成的 (角度 × 后旋) 扫描动画（5 个角度 × 5 个后旋、固定 7.5 m/s 罚球出手），队友浏览器双击即可查看，无需 Python；`python make_interactive.py --offline` 可生成不依赖网络的完整内嵌版
 - **命中概率热力图**：覆盖出手角度 × 后旋速率的参数扫描，输出命中概率面（3D 蒙特卡洛 + 2D "必中速度窗口"两套）
 - **结局占比分解图**：`outcome_breakdown.png`，swish / rim-in / board-in 占比随参数的变化
@@ -72,13 +72,13 @@
 
 | 常数 | 2D 模拟器 `basketball_shot_2d.py` | 3D 主流程 `physics.py` / `collision.py` |
 |---|---|---|
-| 球质量 | 0.60 kg | 0.624 kg |
+| 球质量 | 0.60 kg | 0.62369 kg |
 | 空气密度 ρ | 1.204 | 1.225 |
 | 阻力系数 C_D | 0.47 | 0.50 |
 | 马格努斯 | 固定 `C_L = 0.20`（力 ∝ ω×v） | `C_L0 = 1.00`，等价升力系数形式 |
 | 恢复系数 | 法向 0.70 + 切向 0.85 | e = 0.70（默认切向保留比例 1.0） |
-| 筐口半径 | 0.2287 m（内径 45.7 cm） | 0.225 m |
-| 篮板-筐关系 | 板面 = 筐后沿 + 0.15 m | 筐心距板面 0.375 m |
+| 筐口净半径 | 0.2287 m（内径 45.7 cm） | 0.2286 m（NBA 内径 18 in） |
+| 篮板-筐关系 | 板面 = 筐后沿 + 0.15 m | 筐心距板面 0.381 m（NBA 18 in rim + 6 in clearance） |
 
 2D 模拟器常数冻结自课程 deck（详见 [SIMULATION_2D_PHYSICS.md](SIMULATION_2D_PHYSICS.md)），用于演示与交互；3D 主流程用于正式实验与验证。
 
@@ -93,12 +93,12 @@
 
 ### 5.2 场地几何
 
-- 篮板位于 `x = 0`（宽 1.8 m、高 1.05 m，下沿 y = 2.9 m）
+- NBA 篮板正面位于 `x = 0`（宽 1.8288 m、高 1.0668 m，下沿 y = 2.8956 m）
 - 投手位于 `-x` 侧
-- 篮筐中心位于 `(-0.375, 3.05, 0)`
-- 篮筐高度：`3.05 m`
-- 篮筐直径：`0.45 m`（半径 `0.225 m`）
-- 篮心到篮板距离：`0.375 m`
+- NBA 篮筐开口中心位于 `(-0.381, 3.048, 0)`；钢管中心线在开口半径外再加钢管半径，且比筐顶低一个钢管半径
+- 筐顶高度：`3.048 m`；净开口直径：`0.4572 m`（半径 `0.2286 m`）
+- 钢管直径取 `0.018 m`（FIBA 16–20 mm 区间中点）；篮筐开口中心到篮板正面 `0.381 m`
+- 篮球质量：`0.62369 kg`（22 oz）；半径：`0.11925 m`（29.5 in 周长换算）
 - 反弹恢复系数：`e = 0.7`（篮板与篮筐可分别配置：`BACKBOARD_RESTITUTION` / `RIM_RESTITUTION`，当前默认均为 0.7）
 
 ### 5.3 后旋方向
@@ -113,15 +113,52 @@ omega = (0, 0, +omega)
 
 ### 5.4 Blender 3D 可视化（`blender_3d/`）
 
-三发 3D 投篮（全部由主流程判为 made，常数与几何完全沿用 § 5 的 3D 主流程，出手高度 2.00 m 对应场景中 2.00 m 人物）：
+The Python 3D physics simulation predicts both the trajectory and the final
+outcome. A shot is classified as made when the ball crosses downward through
+the hoop plane inside the scoring radius; otherwise it is a miss. Contact
+history further distinguishes a make as `swish`, `rim-in`, or `board-in`.
+Blender is the presentation layer: it visualises a trajectory and its
+physics-computed outcome, but does not calculate either one.
+
+For a new set of initial conditions, `simulation.simulate_shot()` returns the
+predicted trajectory and outcome. For comparison against recorded shots, use
+the validation pipeline with a labelled CSV (for example,
+`python validation.py data_validation\valid_data_2D.csv`; the required
+`actual_outcome` field is documented in
+`data_validation/DATA_SPECIFICATION.md`). Blender can visualise trajectory
+data, but the current build script only renders the three prepared made-shot
+examples below; it does not automatically import arbitrary validation CSVs
+or render misses.
+
+To regenerate the prepared Blender examples from the repository root:
+
+```powershell
+python blender_3d\find_shots.py
+blender -b -noaudio --python blender_3d\build_blender.py
+```
+
+The first command uses the 3D physics simulation to find example trajectories
+and classify their outcomes, then writes `traj_*.csv` plus `shots.json`. The
+second reads those files, builds and
+saves `blender_3d\basketball_shot3d.blend`, and renders stills under
+`blender_3d\out\`; it also renders `shot3d.mp4` when `ffmpeg` is available on
+`PATH`. The animation reveals each trajectory alongside the ball and gives the
+shooting arm a subtle follow-through. Score stills use the interpolated
+hoop-plane crossing time. The scripts use the 3D model only, not the separate
+2D simulator.
+The Blender builder imports ball, rim, backboard, drag, and restitution values
+from the 3D physics/collision modules; the generated `shots.json` also carries
+the release height used by both the simulation and the scene labels/player.
+
+三发 3D 投篮（全部由主流程判为 made，常数与几何完全沿用 § 5 的 3D 主流程，出手高度 2.00 m 对应场景中 2.00 m 人物；后旋统一采用 `data_validation/data_prep.py` 的默认值 14.137167 rad/s，即 2.25 RPS）：
 
 | 发数 | 参数 | 碰撞序列 | 判定 |
 |---|---|---|---|
-| swish | 7.5 m/s @ 54°，距節板 4.57 m | 无 | 穿篮偏移 r = 0.022 m |
-| board-in | 8.15 m/s @ 36°，距節板 3.4 m | backboard → rim | e = 0.70 反弹后进 |
-| rim-in | 7.65 m/s @ 44°，距節板 4.57 m | rim | 弹篮沿后进 |
+| swish | 7.50 m/s @ 53°，距篮板 4.57 m | 无 | 穿篮偏移 r = 0.014 m |
+| board-in | 7.80 m/s @ 38.5°，距篮板 3.40 m | backboard → rim | e = 0.70 反弹后进 |
+| rim-in | 7.40 m/s @ 48°，距篮板 4.57 m | rim | 穿篮偏移 r = 0.063 m |
 
-- `find_shots.py`（可从任意目录跑，内部把上层目录加入 `sys.path`，直接 import 仓库的 `physics.py` / `collision.py` / `simulation.py`）：扫参数选出上述三发，用 `simulate_shot`（dt = 1 ms RK4 + 碰撞循环）生成轨迹，导出 `traj_*.csv`（`frame,x,y,z,vx,vy,vz`，60 fps 帧号列）与 `shots.json`
+- `find_shots.py`（可从任意目录跑，内部把仓库根目录加入 `sys.path`，直接调用 3D `simulate_shot`；搜索与附近精炼使用 dt = 2 ms，最终轨迹使用 dt = 1 ms；默认后旋从 `data_validation.data_prep.DEFAULT_BACKSPIN_RAD_S` 读取）：扫参数选出上述三发，导出 `traj_*.csv`（`frame,x,y,z,vx,vy,vz`，60 fps 帧号列）与 `shots.json`
 - `build_blender.py`（Blender 5.x 内嵌 Python，可无头跑 `blender -b -noaudio --python blender_3d/build_blender.py`）：读取 CSV 与 `shots.json`，按 60 fps 逐帧烘焙篮位置与后旋姿态关键帧（钱库坐标→Blender 映射 x→X, y→Z, z→−Y，自旋角度 = −ωt），建立人物 / 節板（带内外瞩梶线）/ 篮篘与篮网 / 筓平线标注，Eevee 渲某 1280×720 并用 ffmpeg 合成 `out/shot3d.mp4`（413 帧，段落 1–93 / 138–248 / 293–383，间隙 45 帧）
 - 进殷后的篮下落为近似处理：从碰撞循环停止点继续纯籴 RK4 积分到篮心触地，不再模拟篮网与篮沿下方的二次碰撞
 
@@ -137,7 +174,7 @@ omega = (0, 0, +omega)
 
 ![RIM-IN：弹前篮沿后穿篮](blender_3d/out/qc_rim-in_contact_rim.png)
 
-> 视频链接在 GitHub 会内联播放；每发出手 / 中段 / 碰撞瞬间 / 判定日与落地帧的完整静帧见 `blender_3d/out/qc_*`。
+> 视频链接在 GitHub 会内联播放；每发出手 / 中段 / 碰撞瞬间 / 判定日与落地帧的完整静帧见 `blender_3d/out/qc_*`。这些已渲染媒体需要在更新 `find_shots.py` 生成的新轨迹后重新运行 Blender 构建脚本，才会与上表的默认后旋一致。
 
 ## 6. 文件结构
 

@@ -43,3 +43,7 @@ tmp/
 # 例外：即便上面有 *.spec / build 规则，也绝不误伤这些刻意纳入版本库的产物
 # !data.csv
 # !trajectory.csv
+
+# Copilot Orchestrator temporary files
+.orchestrator/
+.worktrees/

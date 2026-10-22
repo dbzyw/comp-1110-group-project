@@ -1,21 +1,81 @@
-import bpy, math, json, os
+import bpy, math, json, os, shutil, subprocess, sys
 import numpy as np
 from mathutils import Vector, Matrix
 
 D   = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(D, "out")
-os.makedirs(OUT, exist_ok=True)
+ROOT = os.path.dirname(D)
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from physics import BALL_RADIUS, C_D, RHO_AIR
+from collision import (
+    BACKBOARD_BOTTOM,
+    BACKBOARD_HEIGHT,
+    BACKBOARD_RESTITUTION,
+    BACKBOARD_THICKNESS,
+    BACKBOARD_WIDTH,
+    BACKBOARD_X,
+    RIM_CENTER,
+    RIM_CENTERLINE_RADIUS,
+    RIM_HEIGHT,
+    RIM_RADIUS,
+    RIM_RESTITUTION,
+    RIM_TUBE_RADIUS,
+)
+
 FPS = 60.0
-BALL_R, RIM_R, RIM_H, RIM_CX, BOARD_T = 0.12, 0.225, 3.05, -0.375, 0.03
-BB_W, BB_H, BB_BOT = 1.8, 1.05, 2.9
-BB_CY = BB_BOT + BB_H/2
+BALL_R, RIM_R, RIM_H = BALL_RADIUS, RIM_RADIUS, RIM_HEIGHT
+RIM_CX, RIM_CY, RIM_CZ = map(float, RIM_CENTER)
+BOARD_T = BACKBOARD_THICKNESS
+BB_W, BB_H, BB_BOT = BACKBOARD_WIDTH, BACKBOARD_HEIGHT, BACKBOARD_BOTTOM
+BB_CY = BB_BOT + BB_H / 2
+NBA_COURT_LENGTH = 94.0 * 0.3048
+NBA_COURT_WIDTH = 50.0 * 0.3048
+NBA_BASELINE_X = BACKBOARD_X + 4.0 * 0.3048
 PARK = -40.0
 
-shots = json.load(open(os.path.join(D, "shots.json"), encoding="utf-8"))
 order = ["swish", "board-in", "rim-in"]
 caps = {"swish":    "SHOT 1 / SWISH - no contact, clean through",
-        "board-in": "SHOT 2 / BOARD-IN - hits backboard, then rim (e = 0.70)",
+        "board-in": f"SHOT 2 / BOARD-IN - hits backboard, then rim (e = {BACKBOARD_RESTITUTION:.2f})",
         "rim-in":   "SHOT 3 / RIM-IN - bounced off the rim, still drops in"}
+
+def load_inputs():
+    shots_path = os.path.join(D, "shots.json")
+    with open(shots_path, encoding="utf-8") as f:
+        shots = json.load(f)
+    if not isinstance(shots, dict):
+        raise ValueError(f"{shots_path} must contain a JSON object")
+
+    data = {}
+    for kind in order:
+        if kind not in shots or not isinstance(shots[kind], dict):
+            raise ValueError(f"{shots_path} is missing the '{kind}' shot object")
+        for field in ("dist_to_board", "release_height", "angle", "speed", "spin"):
+            value = shots[kind].get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"{shots_path}: '{kind}.{field}' must be a finite number")
+
+        csv_path = os.path.join(D, f"traj_{kind}.csv")
+        trajectory = np.genfromtxt(csv_path, delimiter=",", skip_header=1)
+        if trajectory.ndim != 2 or trajectory.shape[1] != 7 or trajectory.shape[0] < 2:
+            raise ValueError(f"{csv_path} must contain at least two rows with 7 columns")
+        if not np.isfinite(trajectory).all():
+            raise ValueError(f"{csv_path} contains non-finite values")
+        if trajectory[0, 0] < 1 or np.any(np.diff(trajectory[:, 0]) <= 0):
+            raise ValueError(f"{csv_path} frame values must start at 1 or later and increase")
+        score_frame = shots[kind].get("score_frame")
+        if score_frame is not None and (
+            isinstance(score_frame, bool)
+            or not isinstance(score_frame, (int, float))
+            or not math.isfinite(score_frame)
+        ):
+            raise ValueError(f"{shots_path}: '{kind}.score_frame' must be a finite number or null")
+        data[kind] = trajectory
+    return shots, data
+
+shots, data = load_inputs()
+os.makedirs(OUT, exist_ok=True)
 
 def P(x, y, z): return Vector((x, -z, y))
 
@@ -27,10 +87,12 @@ def mk_mat(name, color, rough=0.5, metal=0.0, alpha=1.0):
         bsdf.inputs["Roughness"].default_value = rough
         try: bsdf.inputs["Metallic"].default_value = metal
         except Exception: pass
-    try: m.blend_method = 'BLEND'
-    except Exception:
-        try: m.blend_mode = 'BLEND'
-        except Exception: pass
+    if hasattr(m, "surface_render_method"):
+        m.surface_render_method = 'DITHERED'
+    elif hasattr(m, "blend_method"):
+        m.blend_method = 'BLEND'
+    elif alpha < 1.0:
+        raise RuntimeError(f"Blender cannot configure transparency for material '{name}'")
     return m
 
 mat_skin  = mk_mat("skin",  (0.60, 0.35, 0.20))
@@ -99,15 +161,19 @@ def win_obj(obj, s0, s1):
     fix_interp(obj, "location", {s0-1, s1})
 
 # ------------------------- environment -------------------------
-bpy.ops.mesh.primitive_plane_add(size=30, location=(0, 0, 0))
+bpy.ops.mesh.primitive_plane_add(
+    size=1,
+    location=(NBA_BASELINE_X - NBA_COURT_LENGTH / 2, 0, 0),
+)
 fl = bpy.context.object; fl.name = "Floor"; fl.data.materials.append(mat_floor)
+fl.scale = (NBA_COURT_LENGTH, NBA_COURT_WIDTH, 1)
 
 # backboard (thin box at repo x=0 => blender X=0), glass
-bpy.ops.mesh.primitive_cube_add(size=1, location=(BOARD_T/2, 0, BB_CY))
+bpy.ops.mesh.primitive_cube_add(size=1, location=(BACKBOARD_X + BOARD_T/2, 0, BB_CY))
 bb = bpy.context.object; bb.name = "Backboard"
 bb.scale = (BOARD_T, BB_W, BB_H); bb.data.materials.append(mat_board)
 
-BX = -BOARD_T - 0.004
+BX = BACKBOARD_X - BOARD_T - 0.004
 # outer frame + inner rectangle painted on shooter side. size = (X depth, Y width, Z height)
 for nm, yo, zo, wy, hz in [
     ("BB_Top",    0,        BB_CY+BB_H/2-0.01, BB_W,   0.02),
@@ -115,33 +181,37 @@ for nm, yo, zo, wy, hz in [
     ("BB_L",     -BB_W/2+0.01, BB_CY,         0.02,   BB_H),
     ("BB_R",      BB_W/2-0.01, BB_CY,         0.02,   BB_H)]:
     bar(nm, (BX, yo, zo), (0.008, wy, hz), mat_frame)
-iw, ih = 0.593, 0.457
-ib = 3.05 + 0.15
+iw, ih = 24.0 * 0.0254, 18.0 * 0.0254
+line_w = 2.0 * 0.0254
+ib = RIM_H
 for nm, yo, zo, wy, hz in [
-    ("IN_Bot", 0, ib+0.01,  iw, 0.02), ("IN_Top", 0, ib+ih-0.01, iw, 0.02),
-    ("IN_L",  -iw/2+0.01, (ib+ih)/2, 0.02, ih), ("IN_R", iw/2-0.01, (ib+ih)/2, 0.02, ih)]:
+    ("IN_Bot", 0, ib+line_w/2, iw, line_w),
+    ("IN_Top", 0, ib+ih-line_w/2, iw, line_w),
+    ("IN_L", -iw/2+line_w/2, (ib+ih)/2, line_w, ih),
+    ("IN_R", iw/2-line_w/2, (ib+ih)/2, line_w, ih)]:
     bar(nm, (BX, yo, zo), (0.008, wy, hz), mat_white)
 
 # rim + net + support
-bpy.ops.mesh.primitive_torus_add(major_radius=RIM_R, minor_radius=0.011,
-                                 location=tuple(P(RIM_CX, RIM_H, 0)),
-                                 rotation=(math.pi/2, 0, 0))
+bpy.ops.mesh.primitive_torus_add(major_radius=RIM_CENTERLINE_RADIUS, minor_radius=RIM_TUBE_RADIUS,
+                                 location=tuple(P(RIM_CX, RIM_CY, RIM_CZ)))
 rim = bpy.context.object; rim.name = "Rim"; rim.data.materials.append(mat_rim)
 
 cu = bpy.data.curves.new("Net", 'CURVE'); cu.dimensions = '3D'
 cu.bevel_depth = 0.0018; cu.bevel_resolution = 1
-nR, depth, r_top, r_bot, rings = 24, 0.42, RIM_R, 0.14, 4
+nR, depth, r_top, r_bot, rings = 24, (15.0 + 18.0) / 2 * 0.0254, RIM_R, 0.14, 4
+net_top = RIM_CY - RIM_TUBE_RADIUS
 def add_spline(points):
     s = cu.splines.new('POLY'); s.points.add(len(points)-1)
     for k, p in enumerate(points): s.points[k].co = (*p, 1.0)
 def rr(j): return r_top + (r_bot - r_top)*j/rings
 for j in range(rings+1):
     r = rr(j)
-    add_spline([(RIM_CX + r*math.cos(2*math.pi*i/nR), r*math.sin(2*math.pi*i/nR),
-                 RIM_H - depth*j/rings) for i in range(nR+1)])
+    add_spline([(RIM_CX + r*math.cos(2*math.pi*i/nR),
+                 RIM_CZ + r*math.sin(2*math.pi*i/nR),
+                 net_top - depth*j/rings) for i in range(nR+1)])
 for i in range(nR):
     a = 2*math.pi*i/nR
-    add_spline([(RIM_CX + rr(j)*math.cos(a), rr(j)*math.sin(a), RIM_H - depth*j/rings)
+    add_spline([(RIM_CX + rr(j)*math.cos(a), RIM_CZ + rr(j)*math.sin(a), net_top - depth*j/rings)
                 for j in range(rings+1)])
 neto = bpy.data.objects.new("Net", cu); bpy.context.collection.objects.link(neto)
 neto.data.materials.append(mat_net)
@@ -153,11 +223,10 @@ bar("ArmD", (0.06, 0, 3.90), (0.09, 0.08, 0.25), mat_metal)
 
 # ------------------------- loads & segments -------------------------
 GAP = 45
-data, segs, info = {}, {}, []
+segs, info = {}, []
 tg = 1
 for kind in order:
-    csv = np.genfromtxt(os.path.join(D, f"traj_{kind}.csv"), delimiter=",", skip_header=1)
-    data[kind] = csv
+    csv = data[kind]
     s1 = int(round(float(csv[-1, 0]))) + (tg - 1)
     segs[kind] = (tg, s1); info.append(dict(kind=kind, s0=tg, s1=s1, off=tg-1,
                                              dist=shots[kind]["dist_to_board"],
@@ -207,9 +276,9 @@ def build_ball(kind, off):
     fix_interp(b, "rotation_euler", {off, f1+1})
     return f0, f1
 
-def build_player(kind, dist):
+def build_player(kind, dist, release_height):
     xc = -dist - 0.40
-    xh, zh = -dist + 0.02, 1.98
+    xh, zh = -dist + 0.02, release_height - 0.02
     parts = []
     def cyl(nm, p1, p2, r, mat):
         v1, v2 = Vector(p1), Vector(p2); dv = v2 - v1; L = dv.length
@@ -218,23 +287,30 @@ def build_player(kind, dist):
         o.rotation_mode = 'QUATERNION'; o.rotation_quaternion = dv.to_track_quat('Z', 'Y')
         for p in o.data.polygons: p.use_smooth = True
         o.data.materials.append(mat); parts.append(o)
+        return o
     hipL, hipR = (xc-0.02, -0.11, 0.95), (xc-0.02, 0.11, 0.95)
     shoL, shoR = (xc+0.04, -0.24, 1.58), (xc+0.04, 0.24, 1.58)
     elbL, elbR = (xc+0.34, -0.22, 1.30), (xc+0.30, 0.28, 1.42)
-    wrL, wrR = (xh, -0.10, zh), (xh+0.02, 0.12, 1.86)
+    wrL, wrR = (xh, -0.10, zh), (xh+0.02, 0.12, release_height - 0.14)
+    forearm_r = None
     for nm, p1, p2, r in [("LegL", hipL, (xc-0.06, -0.12, 0.05), 0.07),
                           ("LegR", hipR, (xc-0.06, 0.12, 0.05), 0.07),
                           ("ArmL", shoL, elbL, 0.055), ("ArmR", shoR, elbR, 0.055),
                           ("ForeL", elbL, wrL, 0.045), ("ForeR", elbR, wrR, 0.045)]:
-        cyl(nm, p1, p2, r, mat_skin)
+        limb = cyl(nm, p1, p2, r, mat_skin)
+        if nm == "ForeR":
+            forearm_r = limb
     cyl("Torso", (xc, 0, 0.95), (xc, 0, 1.62), 0.17,
         mk_mat(f"j_{kind}", jersey_col[kind], 0.5))
+    hand_r = None
     for nm, p in [("HandL", wrL), ("HandR", wrR)]:
         bpy.ops.mesh.primitive_uv_sphere_add(radius=0.055, location=p)
         h = bpy.context.object; h.name = nm + "_" + kind
         h.data.materials.append(mat_skin)
         for pl in h.data.polygons: pl.use_smooth = True
         parts.append(h)
+        if nm == "HandR":
+            hand_r = h
     for nm, xx in [("FootL", -0.12), ("FootR", 0.12)]:
         bar(nm + "_" + kind, (xc-0.10, xx, 0.03), (0.24, 0.09, 0.06), mat_frame)
         parts.append(bpy.context.object)
@@ -253,8 +329,17 @@ def build_player(kind, dist):
         if o.parent is None:
             o.parent = root
             o.matrix_parent_inverse = root.matrix_world.inverted()
+    bpy.ops.object.empty_add(type='PLAIN_AXES', location=elbR)
+    elbow = bpy.context.object; elbow.name = "ElbowFollowThrough_" + kind
+    for c in list(elbow.users_collection): c.objects.unlink(elbow)
+    coll.objects.link(elbow)
+    elbow.parent = root
+    elbow.matrix_parent_inverse = root.matrix_world.inverted()
+    for o in (forearm_r, hand_r):
+        o.parent = elbow
+        o.matrix_parent_inverse = elbow.matrix_world.inverted()
     root.name = "PlayerRoot_" + kind
-    return coll, root
+    return coll, root, elbow
 
 def add_text(name, body, loc, size, mat):
     c = bpy.data.curves.new(name, 'FONT'); c.body = body; c.size = size; c.align_x = 'CENTER'
@@ -267,28 +352,50 @@ for it in info:
     l0, l1 = build_ball(kind, off)
     it["l0"], it["l1"] = l0, l1
     csv = data[kind]
-    msk = np.zeros(len(csv), bool); msk[::4] = True; msk[-1] = True
-    rows = csv[msk]
+    rows = csv
     c = bpy.data.curves.new("Traj_"+kind, 'CURVE'); c.dimensions = '3D'; c.bevel_depth = 0.006
     spn = c.splines.new('POLY'); spn.points.add(len(rows)-1)
     for k, r in enumerate(rows): spn.points[k].co = (r[1], -r[3], r[2], 1.0)
     traj = bpy.data.objects.new("Traj_"+kind, c)
     bpy.context.collection.objects.link(traj)
     traj.data.materials.append(mk_mat(f"tr_{kind}", tr_colors[kind], 0.4))
+    segment_lengths = np.linalg.norm(np.diff(rows[:, 1:4], axis=0), axis=1)
+    arc_lengths = np.concatenate(([0.0], np.cumsum(segment_lengths)))
+    total_length = float(arc_lengths[-1])
+    if total_length <= 0:
+        raise ValueError(f"traj_{kind}.csv has no spatial movement")
+    traj.data.bevel_factor_end = 0.0
+    traj.data.keyframe_insert(data_path="bevel_factor_end", frame=it["s0"] - 1)
+    reveal_indices = np.unique(np.append(np.arange(0, len(rows), 4), len(rows) - 1))
+    for index in reveal_indices:
+        traj.data.bevel_factor_end = float(arc_lengths[index] / total_length)
+        traj.data.keyframe_insert(
+            data_path="bevel_factor_end",
+            frame=float(rows[index, 0]) + off,
+        )
+    fix_interp(traj.data, "bevel_factor_end", set())
     win_obj(traj, it["s0"], it["s1"])
-    pc, root = build_player(kind, it["dist"])
+    pc, root, elbow = build_player(kind, it["dist"], sh["release_height"])
     win_obj(root, it["s0"], it["s1"])
+    for frame, angle in ((it["s0"], 0.0), (it["s0"] + 4, 0.10), (it["s0"] + 18, 0.22)):
+        elbow.rotation_euler = (0.0, angle, 0.0)
+        elbow.keyframe_insert(data_path="rotation_euler", frame=frame)
+    fix_interp(elbow, "rotation_euler", set())
     cap = add_text("Cap_"+kind, caps[kind], (-3.0, -1.1, 4.02), 0.085, mat_white)
     par = add_text("Par_"+kind,
         f"v0={sh['speed']:.2f} m/s   theta={sh['angle']:.1f} deg   backspin w={sh['spin']:.0f} rad/s   "
-        f"to-board={sh['dist_to_board']:.2f} m   release 2.00 m   CD=0.50 rho=1.225   e=0.70",
+        f"to-board={sh['dist_to_board']:.2f} m   release={sh['release_height']:.2f} m   "
+        f"CD={C_D:.2f} rho={RHO_AIR:.3f}   e(board/rim)="
+        f"{BACKBOARD_RESTITUTION:.2f}/{RIM_RESTITUTION:.2f}",
         (-3.0, -1.1, 3.78), 0.062, mat_white)
     for tt in (cap, par): win_obj(tt, it["s0"], it["s1"])
 
-add_text("Lbl_hoop", "RIM 3.05 m", (-0.375, -0.45, 2.28), 0.08, mat_white)
-add_text("Lbl_bb", "BACKBOARD e=0.70", (0.0, -1.20, 2.72), 0.09, mat_white)
+add_text("Lbl_hoop", f"RIM {RIM_H:.2f} m", (RIM_CX, -0.45, 2.28), 0.08, mat_white)
+add_text("Lbl_bb", f"BACKBOARD e={BACKBOARD_RESTITUTION:.2f}",
+         (BACKBOARD_X, -1.20, 2.72), 0.09, mat_white)
 add_text("Lbl_src",
-         "Physics: github.com/dbzyw/comp-1110-group-project - RK4, air drag CD=0.50, Magnus backspin, collisions e=0.70",
+         f"Physics: github.com/dbzyw/comp-1110-group-project - RK4, air drag CD={C_D:.2f}, "
+         f"Magnus backspin, collisions e={BACKBOARD_RESTITUTION:.2f}",
          (-4.3, -0.5, 0.42), 0.045, mat_white)
 
 # ------------------------- camera & lights -------------------------
@@ -345,10 +452,11 @@ def contact_frames(kind, off):
     csv = data[kind]; x, y, z = csv[:, 1], csv[:, 2], csv[:, 3]
     out = {}
     if kind == "board-in":
-        d1 = np.where(x < -BALL_R+0.001, np.abs(x + BALL_R), 999)
+        board_contact_x = BACKBOARD_X - BALL_R
+        d1 = np.where(x < board_contact_x + 0.001, np.abs(x - board_contact_x), 999)
         i = int(np.argmin(d1)); out["board"] = int(round(csv[i, 0])) + off
-    hz = np.hypot(x - RIM_CX, z)
-    d2 = np.abs(hz - RIM_R) + 2*np.abs(y - RIM_H)
+    hz = np.hypot(x - RIM_CX, z - RIM_CZ)
+    d2 = np.abs(hz - RIM_CENTERLINE_RADIUS) + 2*np.abs(y - RIM_CY)
     i = int(np.argmin(d2)); out["rim"] = int(round(csv[i, 0])) + off
     return out
 
@@ -375,23 +483,45 @@ r.ffmpeg.format = 'MPEG4'; r.ffmpeg.codec = 'H264'
 r.ffmpeg.constant_rate_factor = 'HIGH'
 try: r.ffmpeg.use_lossless_compress = False
 except Exception: pass
+video_error = None
 if os.environ.get("BB_SKIP_VIDEO"):
     print("video skipped (BB_SKIP_VIDEO)", flush=True)
 else:
-    r.image_settings.file_format = 'PNG'
-    FRD = os.path.join(OUT, "frames")
-    os.makedirs(FRD, exist_ok=True)
-    r.filepath = os.path.join(FRD, "frame_")
-    bpy.ops.render.render(animation=True)
-    import subprocess
-    dst = os.path.join(OUT, "shot3d.mp4")
-    cmd = ["ffmpeg", "-y", "-framerate", "60", "-start_number", str(sc.frame_start),
-           "-i", os.path.join(FRD, "frame_%04d.png"), "-c:v", "libx264", "-pix_fmt", "yuv420p",
-           "-crf", "18", dst]
-    p = subprocess.run(cmd, capture_output=True)
-    print("ffmpeg rc:", p.returncode, p.stderr[-200:] if p.returncode else "", flush=True)
-    if os.path.exists(dst):
-        print("video:", dst, os.path.getsize(dst), flush=True)
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        print("warning: ffmpeg not found; stills and blend file will be saved, MP4 skipped; "
+              "any existing MP4 was left untouched and may be stale", flush=True)
+    else:
+        r.image_settings.file_format = 'PNG'
+        FRD = os.path.join(OUT, "frames")
+        os.makedirs(FRD, exist_ok=True)
+        r.filepath = os.path.join(FRD, "frame_")
+        bpy.ops.render.render(animation=True)
+        dst = os.path.join(OUT, "shot3d.mp4")
+        tmp_dst = os.path.join(OUT, "shot3d.tmp.mp4")
+        cmd = [ffmpeg, "-y", "-framerate", "60", "-start_number", str(sc.frame_start),
+               "-i", os.path.join(FRD, "frame_%04d.png"), "-c:v", "libx264", "-pix_fmt", "yuv420p",
+               "-crf", "18", "-f", "mp4", tmp_dst]
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True)
+        except OSError as exc:
+            video_error = f"could not run ffmpeg: {exc}"
+        else:
+            if p.returncode == 0 and os.path.isfile(tmp_dst) and os.path.getsize(tmp_dst) > 0:
+                try:
+                    os.replace(tmp_dst, dst)
+                except OSError as exc:
+                    video_error = f"could not publish MP4: {exc}"
+                else:
+                    print("video:", dst, os.path.getsize(dst), flush=True)
+            else:
+                video_error = p.stderr[-1000:] or "ffmpeg returned no video output"
+        if os.path.exists(tmp_dst):
+            os.remove(tmp_dst)
+        if video_error:
+            print(f"error: MP4 encoding failed: {video_error}", flush=True)
 
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(D, "basketball_shot3d.blend"))
 print("DONE frames:", TOTAL, "segs:", [(i["kind"], i["s0"], i["s1"]) for i in info], flush=True)
+if video_error:
+    raise RuntimeError("MP4 encoding failed; the scene and still renders were saved")

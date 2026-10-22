@@ -296,8 +296,8 @@ def _read_rows(input_path):
                 v0x, v0y, v0z = _initial_velocity(distance_m, release_y_m)
             outcome = _map_outcome(raw.get(outcome_column, ""), row_number)
 
-            # In the simulation's court frame, the rim centre is at x=-0.375 m
-            # and a straight-on shooter is farther in the negative-x direction.
+            # Legacy straight-on coordinate assumption; source distance
+            # reference is not verified against the simulation's court frame.
             output_rows.append(
                 {
                     "shot_id": len(output_rows) + 1,

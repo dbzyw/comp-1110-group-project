@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+
+# Copilot Orchestrator temporary files
+.orchestrator/
+.worktrees/

@@ -1,0 +1,897 @@
+{
+  "schema_version": 1,
+  "source_csv": "valid_data_3D.csv",
+  "coordinate_system": {
+    "units": "SI",
+    "x": "from shooter towards basket",
+    "y": "vertical, positive upwards",
+    "z": "lateral"
+  },
+  "frames_per_second": 60.0,
+  "trajectory_columns": [
+    "frame",
+    "x",
+    "y",
+    "z",
+    "vx",
+    "vy",
+    "vz"
+  ],
+  "shots": [
+    {
+      "shot_id": 301,
+      "trajectory_csv": "trajectories/shot_301.csv",
+      "release_position_m": [
+        -14.207,
+        2.534,
+        7.718
+      ],
+      "release_velocity_m_s": [
+        0.5,
+        0.2,
+        0.5
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 46,
+      "t_end_s": 0.7479428467855717
+    },
+    {
+      "shot_id": 302,
+      "trajectory_csv": "trajectories/shot_302.csv",
+      "release_position_m": [
+        -4.492,
+        2.559,
+        10.833
+      ],
+      "release_velocity_m_s": [
+        1.55,
+        0.05,
+        1.525
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 46,
+      "t_end_s": 0.7401397362078043
+    },
+    {
+      "shot_id": 303,
+      "trajectory_csv": "trajectories/shot_303.csv",
+      "release_position_m": [
+        -24.363,
+        2.64,
+        8.565
+      ],
+      "release_velocity_m_s": [
+        1.75,
+        0.1,
+        5.275
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 47,
+      "t_end_s": 0.7623254202079667
+    },
+    {
+      "shot_id": 304,
+      "trajectory_csv": "trajectories/shot_304.csv",
+      "release_position_m": [
+        -5.665,
+        2.505,
+        7.731
+      ],
+      "release_velocity_m_s": [
+        1.175,
+        0.45,
+        0.121
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 48,
+      "t_end_s": 0.7728792698314578
+    },
+    {
+      "shot_id": 305,
+      "trajectory_csv": "trajectories/shot_305.csv",
+      "release_position_m": [
+        -5.599,
+        2.593,
+        7.73
+      ],
+      "release_velocity_m_s": [
+        2.8,
+        0.225,
+        0.131
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 48,
+      "t_end_s": 0.7680299399654669
+    },
+    {
+      "shot_id": 306,
+      "trajectory_csv": "trajectories/shot_306.csv",
+      "release_position_m": [
+        -14.207,
+        2.534,
+        7.718
+      ],
+      "release_velocity_m_s": [
+        0.4,
+        0.325,
+        4.35
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 47,
+      "t_end_s": 0.7647739973496377
+    },
+    {
+      "shot_id": 307,
+      "trajectory_csv": "trajectories/shot_307.csv",
+      "release_position_m": [
+        -6.366,
+        2.495,
+        7.597
+      ],
+      "release_velocity_m_s": [
+        2.8,
+        1.1,
+        1.875
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 53,
+      "t_end_s": 0.8537078096909528
+    },
+    {
+      "shot_id": 308,
+      "trajectory_csv": "trajectories/shot_308.csv",
+      "release_position_m": [
+        -27.358,
+        2.525,
+        9.005
+      ],
+      "release_velocity_m_s": [
+        1.9,
+        1.5,
+        4.275
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 56,
+      "t_end_s": 0.9047088538805922
+    },
+    {
+      "shot_id": 309,
+      "trajectory_csv": "trajectories/shot_309.csv",
+      "release_position_m": [
+        -27.299,
+        2.518,
+        9.159
+      ],
+      "release_velocity_m_s": [
+        1.175,
+        0.75,
+        1.65
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 50,
+      "t_end_s": 0.8089548836337361
+    },
+    {
+      "shot_id": 310,
+      "trajectory_csv": "trajectories/shot_310.csv",
+      "release_position_m": [
+        -4.43,
+        2.498,
+        10.835
+      ],
+      "release_velocity_m_s": [
+        1.275,
+        2.025,
+        3.425
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 59,
+      "t_end_s": 0.9637038271707056
+    },
+    {
+      "shot_id": 311,
+      "trajectory_csv": "trajectories/shot_311.csv",
+      "release_position_m": [
+        -24.407,
+        2.496,
+        0.663
+      ],
+      "release_velocity_m_s": [
+        4.275,
+        3.25,
+        3.5
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 70,
+      "t_end_s": 1.1492688835157157
+    },
+    {
+      "shot_id": 312,
+      "trajectory_csv": "trajectories/shot_312.csv",
+      "release_position_m": [
+        -1.221,
+        2.528,
+        10.734
+      ],
+      "release_velocity_m_s": [
+        0.325,
+        0.3,
+        2.775
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 47,
+      "t_end_s": 0.7589637312392683
+    },
+    {
+      "shot_id": 313,
+      "trajectory_csv": "trajectories/shot_313.csv",
+      "release_position_m": [
+        -3.088,
+        2.5,
+        8.343
+      ],
+      "release_velocity_m_s": [
+        3.0,
+        1.85,
+        3.575
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 59,
+      "t_end_s": 0.9501163508858073
+    },
+    {
+      "shot_id": 314,
+      "trajectory_csv": "trajectories/shot_314.csv",
+      "release_position_m": [
+        -22.916,
+        2.501,
+        11.947
+      ],
+      "release_velocity_m_s": [
+        4.8,
+        9.025,
+        3.5
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 126,
+      "t_end_s": 2.0678245888099673
+    },
+    {
+      "shot_id": 315,
+      "trajectory_csv": "trajectories/shot_315.csv",
+      "release_position_m": [
+        -20.918,
+        2.52,
+        11.749
+      ],
+      "release_velocity_m_s": [
+        0.775,
+        1.875,
+        2.95
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 58,
+      "t_end_s": 0.9447205634298284
+    },
+    {
+      "shot_id": 316,
+      "trajectory_csv": "trajectories/shot_316.csv",
+      "release_position_m": [
+        -1.817,
+        2.488,
+        0.658
+      ],
+      "release_velocity_m_s": [
+        0.45,
+        1.125,
+        2.375
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 52,
+      "t_end_s": 0.8458267548038549
+    },
+    {
+      "shot_id": 317,
+      "trajectory_csv": "trajectories/shot_317.csv",
+      "release_position_m": [
+        -3.767,
+        2.467,
+        4.736
+      ],
+      "release_velocity_m_s": [
+        1.025,
+        0.45,
+        2.5
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 48,
+      "t_end_s": 0.768187362713959
+    },
+    {
+      "shot_id": 318,
+      "trajectory_csv": "trajectories/shot_318.csv",
+      "release_position_m": [
+        -27.197,
+        2.519,
+        13.055
+      ],
+      "release_velocity_m_s": [
+        1.0,
+        1.175,
+        3.925
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 53,
+      "t_end_s": 0.8601105465580884
+    },
+    {
+      "shot_id": 319,
+      "trajectory_csv": "trajectories/shot_319.csv",
+      "release_position_m": [
+        -6.426,
+        2.466,
+        1.878
+      ],
+      "release_velocity_m_s": [
+        0.3,
+        1.675,
+        1.65
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 56,
+      "t_end_s": 0.9085521762259882
+    },
+    {
+      "shot_id": 320,
+      "trajectory_csv": "trajectories/shot_320.csv",
+      "release_position_m": [
+        -4.647,
+        2.502,
+        7.457
+      ],
+      "release_velocity_m_s": [
+        1.475,
+        0.325,
+        5.25
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 47,
+      "t_end_s": 0.7648522507056303
+    },
+    {
+      "shot_id": 321,
+      "trajectory_csv": "trajectories/shot_321.csv",
+      "release_position_m": [
+        -7.619,
+        2.491,
+        4.567
+      ],
+      "release_velocity_m_s": [
+        1.05,
+        3.55,
+        4.3
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 72,
+      "t_end_s": 1.1720532524122937
+    },
+    {
+      "shot_id": 322,
+      "trajectory_csv": "trajectories/shot_322.csv",
+      "release_position_m": [
+        -2.503,
+        2.485,
+        14.248
+      ],
+      "release_velocity_m_s": [
+        0.15,
+        3.075,
+        1.95
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 67,
+      "t_end_s": 1.0977724876054777
+    },
+    {
+      "shot_id": 323,
+      "trajectory_csv": "trajectories/shot_323.csv",
+      "release_position_m": [
+        -6.628,
+        2.47,
+        13.298
+      ],
+      "release_velocity_m_s": [
+        1.75,
+        0.825,
+        2.975
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 50,
+      "t_end_s": 0.8139664903379293
+    },
+    {
+      "shot_id": 324,
+      "trajectory_csv": "trajectories/shot_324.csv",
+      "release_position_m": [
+        -7.268,
+        2.482,
+        8.69
+      ],
+      "release_velocity_m_s": [
+        1.15,
+        0.775,
+        2.9
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 50,
+      "t_end_s": 0.8075588783643629
+    },
+    {
+      "shot_id": 325,
+      "trajectory_csv": "trajectories/shot_325.csv",
+      "release_position_m": [
+        -1.564,
+        2.494,
+        6.561
+      ],
+      "release_velocity_m_s": [
+        3.0,
+        1.45,
+        4.375
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "passed behind backboard",
+      "score_frame": null,
+      "points": 44,
+      "t_end_s": 0.7130000000000005
+    },
+    {
+      "shot_id": 326,
+      "trajectory_csv": "trajectories/shot_326.csv",
+      "release_position_m": [
+        -5.711,
+        2.462,
+        7.721
+      ],
+      "release_velocity_m_s": [
+        0.55,
+        0.55,
+        2.2
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 48,
+      "t_end_s": 0.7764588953994734
+    },
+    {
+      "shot_id": 327,
+      "trajectory_csv": "trajectories/shot_327.csv",
+      "release_position_m": [
+        -5.665,
+        2.505,
+        7.731
+      ],
+      "release_velocity_m_s": [
+        1.175,
+        0.45,
+        3.025
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 48,
+      "t_end_s": 0.7749238970174509
+    },
+    {
+      "shot_id": 328,
+      "trajectory_csv": "trajectories/shot_328.csv",
+      "release_position_m": [
+        -25.129,
+        2.486,
+        9.136
+      ],
+      "release_velocity_m_s": [
+        1.125,
+        0.275,
+        4.925
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 47,
+      "t_end_s": 0.7554793251683259
+    },
+    {
+      "shot_id": 329,
+      "trajectory_csv": "trajectories/shot_329.csv",
+      "release_position_m": [
+        -1.88,
+        2.496,
+        7.04
+      ],
+      "release_velocity_m_s": [
+        1.7,
+        0.05,
+        1.325
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 45,
+      "t_end_s": 0.7312694868098276
+    },
+    {
+      "shot_id": 330,
+      "trajectory_csv": "trajectories/shot_330.csv",
+      "release_position_m": [
+        -27.303,
+        2.473,
+        0.684
+      ],
+      "release_velocity_m_s": [
+        0.1,
+        1.8,
+        4.125
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 57,
+      "t_end_s": 0.926444030723125
+    },
+    {
+      "shot_id": 331,
+      "trajectory_csv": "trajectories/shot_331.csv",
+      "release_position_m": [
+        -26.616,
+        2.464,
+        5.639
+      ],
+      "release_velocity_m_s": [
+        0.375,
+        2.225,
+        2.425
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 60,
+      "t_end_s": 0.9800004687776885
+    },
+    {
+      "shot_id": 332,
+      "trajectory_csv": "trajectories/shot_332.csv",
+      "release_position_m": [
+        -26.599,
+        2.523,
+        5.452
+      ],
+      "release_velocity_m_s": [
+        0.525,
+        1.975,
+        1.325
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 59,
+      "t_end_s": 0.9558385219913713
+    },
+    {
+      "shot_id": 333,
+      "trajectory_csv": "trajectories/shot_333.csv",
+      "release_position_m": [
+        -4.756,
+        2.534,
+        4.57
+      ],
+      "release_velocity_m_s": [
+        0.975,
+        1.325,
+        3.2
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 54,
+      "t_end_s": 0.8793904484022123
+    },
+    {
+      "shot_id": 334,
+      "trajectory_csv": "trajectories/shot_334.csv",
+      "release_position_m": [
+        -5.83,
+        2.521,
+        8.349
+      ],
+      "release_velocity_m_s": [
+        0.45,
+        1.925,
+        2.925
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 58,
+      "t_end_s": 0.9497270700111919
+    },
+    {
+      "shot_id": 335,
+      "trajectory_csv": "trajectories/shot_335.csv",
+      "release_position_m": [
+        -5.525,
+        2.518,
+        7.767
+      ],
+      "release_velocity_m_s": [
+        3.9,
+        0.25,
+        5.825
+      ],
+      "backspin_rad_s": 14.137167,
+      "actual_outcome": "made",
+      "actual_binary": "made",
+      "predicted_outcome": "miss",
+      "predicted_binary": "miss",
+      "match": false,
+      "contacts": [],
+      "reason": "hit floor",
+      "score_frame": null,
+      "points": 48,
+      "t_end_s": 0.7689039536950311
+    }
+  ]
+}

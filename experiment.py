@@ -50,14 +50,14 @@ from collision import (BOARD_CONTACT_WINDOW_2D,
 # ---------------------------------------------------------------------------
 # 出手条件 (标准罚球)
 # ---------------------------------------------------------------------------
-RELEASE_POS = np.array([-4.57, 2.0, 0.0])
+RELEASE_POS = np.array([-15.0 * 0.3048, 2.0, 0.0])
 RELEASE_SPEED = 7.5
 
 # ---------------------------------------------------------------------------
-# 出手条件: 三分球 (FIBA 三分线距筐心 6.75 m; 速率更高以覆盖更长射程)
+# 出手条件: NBA 三分弧顶距筐心 23 ft 9 in; 速率更高以覆盖更长射程.
 # ---------------------------------------------------------------------------
-THREE_DIST = 6.75
-THREE_RELEASE_POS = np.array([RIM_CENTER[0] - THREE_DIST, 2.0, 0.0])  # (-7.125, 2.0, 0)
+THREE_DIST = 23.75 * 0.3048
+THREE_RELEASE_POS = np.array([RIM_CENTER[0] - THREE_DIST, 2.0, 0.0])  # approx. (-7.620, 2.0, 0)
 THREE_SPEED = 9.5
 
 # ---------------------------------------------------------------------------
@@ -444,7 +444,7 @@ def run_free_throw_sweep(out_csv="data.csv", seed=0):
 
 
 def run_three_point_sweep(out_csv="data_three.csv", seed=0):
-    """三分球扫描 (FIBA 6.75 m, 更窄角度窗口)。"""
+    """三分球扫描 (NBA 三分弧顶 23 ft 9 in, 更窄角度窗口)。"""
     return run_sweep(out_csv, seed, THREE_RELEASE_POS, THREE_SPEED,
                      THREE_ANGLES_DEG, THREE_BACKSPINS)
 

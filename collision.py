@@ -34,7 +34,8 @@ plane-crossing triggers (与 basketball_shot_2d.py 同源)。
   刚性圆点，法向 0.70 + 切向 0.85，进球用“穿面 + 筐口内沿两侧各留 12 mm
   余量”判据。
 
-两套几何常数不同（3D 筐半径 0.225 m，2D 用 0.2287 m），引用结果时必须注明是哪套。
+3D uses the NBA 18-in clear opening with a finite steel tube; the separate
+2D demonstration keeps its course-frozen dimensions.
 """
 
 import math
@@ -45,7 +46,7 @@ import numpy as np
 try:
     from physics import BALL_RADIUS
 except ImportError:  # Keep this module usable by itself for demonstrations/tests.
-    BALL_RADIUS = 0.12
+    BALL_RADIUS = 29.5 * 0.0254 / (2.0 * math.pi)
 
 try:
     from physics import (BALL_RADIUS_2D, RIM_HEIGHT_2D, RIM_RADIUS_2D,
@@ -61,18 +62,23 @@ except ImportError:  # 允许单独作为脚本运行 / 无物理模块时也能
     RESTITUTION_TANGENTIAL_2D = 0.85
 
 
-# Geometry (metres) — 与 collision.py 完全一致
-RIM_HEIGHT = 3.05
-RIM_DIAMETER = 0.45
+# NBA geometry (metres). RIM_DIAMETER/RIM_RADIUS describe the clear opening;
+# the collision circle is the steel tube centreline.
+RIM_HEIGHT = 10.0 * 0.3048
+RIM_DIAMETER = 18.0 * 0.0254
 RIM_RADIUS = RIM_DIAMETER / 2.0
-RIM_TO_BOARD = 0.375
+RIM_TUBE_DIAMETER = 18.0e-3  # midpoint of FIBA's 16–20 mm ring-tube range
+RIM_TUBE_RADIUS = RIM_TUBE_DIAMETER / 2.0
+RIM_CENTERLINE_RADIUS = RIM_RADIUS + RIM_TUBE_RADIUS
+RIM_TO_BOARD = 6.0 * 0.0254 + RIM_RADIUS
 BACKBOARD_X = 0.0
-BACKBOARD_WIDTH = 1.8
-BACKBOARD_HEIGHT = 1.05
-BACKBOARD_BOTTOM = 2.9
+BACKBOARD_WIDTH = 72.0 * 0.0254
+BACKBOARD_HEIGHT = 42.0 * 0.0254
+BACKBOARD_BOTTOM = 9.5 * 0.3048
 BACKBOARD_TOP = BACKBOARD_BOTTOM + BACKBOARD_HEIGHT
 BACKBOARD_HALF_WIDTH = BACKBOARD_WIDTH / 2.0
-RIM_CENTER = np.array([-RIM_TO_BOARD, RIM_HEIGHT, 0.0])
+RIM_CENTER = np.array([-RIM_TO_BOARD, RIM_HEIGHT - RIM_TUBE_RADIUS, 0.0])
+BACKBOARD_THICKNESS = 0.5 * 0.0254
 BACKBOARD_RESTITUTION = 0.7
 RIM_RESTITUTION = 0.7
 # Backwards-compatible default used by callers that still pass RESTITUTION.
@@ -81,7 +87,7 @@ RESTITUTION = BACKBOARD_RESTITUTION
 # 1.0 means frictionless contact; 0.0 removes tangential velocity at impact.
 TANGENTIAL_RETENTION = 1.0
 
-# 预计算的筐心水平分量 (热路径少做几次索引; 数值与原版逐位一致)
+# Precomputed horizontal rim centreline coordinates for the collision hot path.
 _RIM_C0 = float(RIM_CENTER[0])
 _RIM_C2 = float(RIM_CENTER[2])
 
@@ -162,12 +168,12 @@ def _detect_rim_valid(center, ball_radius) -> Collision | None:
     else:
         radial_direction = np.array([1.0, 0.0])
     contact = np.empty(3, dtype=float)
-    contact[0] = _RIM_C0 + RIM_RADIUS * radial_direction[0]
-    contact[1] = RIM_HEIGHT
-    contact[2] = _RIM_C2 + RIM_RADIUS * radial_direction[1]
+    contact[0] = _RIM_C0 + RIM_CENTERLINE_RADIUS * radial_direction[0]
+    contact[1] = RIM_CENTER[1]
+    contact[2] = _RIM_C2 + RIM_CENTERLINE_RADIUS * radial_direction[1]
     delta = center - contact
     distance = float(np.linalg.norm(delta))
-    penetration = ball_radius - distance
+    penetration = ball_radius + RIM_TUBE_RADIUS - distance
     if penetration < 0.0:
         return None
     # For the project's dimensions distance cannot be zero, but keep the normal
@@ -190,7 +196,7 @@ def detect_backboard(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
 
 
 def detect_rim(pos, ball_radius: float = BALL_RADIUS) -> Collision | None:
-    """Detect sphere contact with the thin horizontal circular rim."""
+    """Detect sphere contact with the finite-radius horizontal rim tube."""
     return _detect_rim_valid(_vector3(pos, "pos"),
                              _positive_scalar(ball_radius, "ball_radius"))
 
@@ -280,13 +286,13 @@ def detect_rim_batch(pos, ball_radius: float = BALL_RADIUS) -> tuple[np.ndarray,
     direction[~off_axis, 0] = 1.0
 
     contacts = np.column_stack((
-        _RIM_C0 + RIM_RADIUS * direction[:, 0],
-        np.full(len(centers), RIM_HEIGHT),
-        _RIM_C2 + RIM_RADIUS * direction[:, 1],
+        _RIM_C0 + RIM_CENTERLINE_RADIUS * direction[:, 0],
+        np.full(len(centers), RIM_CENTER[1]),
+        _RIM_C2 + RIM_CENTERLINE_RADIUS * direction[:, 1],
     ))
     delta = centers - contacts
     distance = np.linalg.norm(delta, axis=1)
-    penetration = ball_radius - distance
+    penetration = ball_radius + RIM_TUBE_RADIUS - distance
     hit = penetration >= 0.0
 
     normals = np.zeros_like(centers)

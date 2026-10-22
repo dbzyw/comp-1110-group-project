@@ -26,6 +26,7 @@ Validation compares recorded outcomes against the frozen 3D physics simulation. 
 | `data_prep.py` | Conversion helper (not data) | Applies the §7 straight-on assumptions to turn the raw dataset into `valid_data_2D.csv`. |
 | `valid_data_2D.csv` | 300 rows, exact nine-column schema; IDs 1–300; 148 `made` / 152 `miss`; `release_z = v0z = 0`; imputed `backspin = 14.137167 rad/s` | A 2D/straight-on approximation that can be parsed by `validation.py`; it is not measured 3D kinematics. |
 | `valid_data_3D.csv` | 35 rows, exact nine-column schema; IDs 301–335; all labels assumed `made`; imputed `backspin = 14.137167 rad/s` | Tentative 3D inputs with supplied position and velocity components. Source axes, origin, velocity units, and labels remain unverified. |
+| `export_blender_3d.py` | Export helper | Simulates a validation CSV and creates a 60 fps Blender-ready trajectory export without changing the three-demo Blender scene. |
 | `extract.py` | Extracts ball positions from a local `sample.json` | Writes tracking rows; the expected JSON source is not currently in this folder. |
 
 All data tables use comma-delimited UTF-8 CSV. The original workbook was
@@ -198,7 +199,7 @@ python data_validation/data_prep.py "path/to/source.csv" --output "path/to/valid
 |---|---|---|
 | （位置参数） | 原始 shooting CSV 路径 | `basketball_shooting_dataset.csv` |
 | `--output` | 输出 2D valid CSV | `data_validation/valid_data_2D.csv` |
-| 合成参数 | Source `Shot_Speed_m_s` + `Release_Angle_deg` when both are present; otherwise 51° vacuum fallback; backspin 14.137167 rad/s; release-height estimate; `release_x = -0.375 - distance`, `release_z = 0` | — |
+| 合成参数 | Source `Shot_Speed_m_s` + `Release_Angle_deg` when both are present; otherwise 51° vacuum fallback; backspin 14.137167 rad/s; release-height estimate; legacy `release_x = -0.375 - distance`, `release_z = 0` | — |
 
 It recognizes common distance columns (including `Distance_from_Basket_m`)
 and binary outcome columns (including `Shot_Result`, `made_shot`, and
@@ -231,8 +232,9 @@ players; that elite sample supports the relevance of reach/jump measurements
 but does not validate this stature multiplier or the shot-specific fraction.
 
 For the generated position, the script assumes the distance is a straight-on
-horizontal distance to the rim centre. It uses the model's rim-centre
-coordinate `x = -0.375 m`, so `release_x = -0.375 - distance`; it sets
+horizontal distance to the rim centre. Its legacy mapping uses
+`x = -0.375 m`, so `release_x = -0.375 - distance`; this mapping has not been
+verified against the external dataset's coordinate convention. It sets
 `release_z = 0`. When both source columns are present, it computes the
 straight-on components from the recorded speed and release angle:
 
@@ -282,16 +284,17 @@ The validation inputs are intentionally split:
   shooting dataset under a straight-on assumption. Its release height is
   estimated from stature and shot type, `release_z = v0z = 0`, and the
   release velocity is resolved from source `Shot_Speed_m_s` and
-  `Release_Angle_deg`. It has 148 `made` and 152 `miss` labels. Its 153/300
-  agreement result is documented in
-  `model_validation_results_2D.md`; it is a 2D approximation, not measured
-  3D release kinematics.
+  `Release_Angle_deg`. It has 148 `made` and 152 `miss` labels. The
+  `model_validation_results_2D.md` metrics are a historical snapshot from
+  before the NBA geometry/ball-parameter alignment and are not current-model
+  results; the file remains a 2D approximation, not measured 3D release
+  kinematics.
 - `valid_data_3D.csv` contains IDs 301–335. Positive source `x_m` was
   negated, `z_m` was tentatively mapped to vertical `release_y`, and `y_m`
   to lateral `release_z`; supplied velocity components were copied unchanged.
   Every row is labelled `made` at the user's direction and uses imputed
-  `backspin = 14.137167 rad/s`. Its 0/35 agreement result is documented in
-  `model_validation_results_3D.md`. The labels, source axes, origin, and
+  `backspin = 14.137167 rad/s`. Its `model_validation_results_3D.md` metrics
+  are likewise a pre-alignment snapshot. The labels, source axes, origin, and
   velocity units are unverified; its lateral positions are large
   (0.658–14.248 m). It is a tentative parser-compatible 3D scenario, not an
   empirical validation dataset.
@@ -309,6 +312,27 @@ the two supplied-component CSVs and its tentative mapping described above.
 Parser compatibility is not evidence that assumed or copied inputs represent
 measured shot conditions. Metrics that include assumed outcome labels are not
 an empirical validation result.
+
+### 8.1 Blender trajectory export
+
+Run the following from the repository root to export every row in
+`valid_data_3D.csv`:
+
+```powershell
+python data_validation\export_blender_3d.py
+```
+
+The command creates `data_validation/blender_3d_validation/` with
+`shots.json` and one 60 fps trajectory CSV per shot under `trajectories/`.
+Each CSV uses the Blender trajectory columns
+`frame,x,y,z,vx,vy,vz`; `shots.json` records the original release values,
+predicted outcome, contacts, score frame (or `null` for a miss), and the
+relative CSV path. It uses `simulation.simulate_shot()`, so its outcomes are
+the same as `validation.py`.
+
+This export is a general input format for a future Blender renderer. The
+current `blender_3d/build_blender.py` deliberately remains a three-shot
+demonstration renderer and does not load this 35-shot manifest.
 
 ## 附录 A · 2026-10-21 复验观察值（本报告内数字的出处）
 

@@ -1,5 +1,9 @@
 # Basketball shot model validation results - Tentative 3D supplied-component dataset
 
+> Historical snapshot from before the NBA geometry/ball-parameter alignment.
+> Its per-shot predictions and metrics have not been rerun for the current
+> physics constants; the input axes, units, and assumed labels remain unverified.
+
 - Input: `data_validation/valid_data_3D.csv` (35 records).
 - Validation implementation: `validation.py` calling the existing `simulate_shot()` model; model constants were not tuned.
 - Prediction target: binary made/miss agreement. Generic `made` labels do not invent a made-shot subtype.

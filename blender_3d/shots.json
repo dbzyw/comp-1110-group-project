@@ -1,46 +1,49 @@
 {
   "swish": {
     "dist_to_board": 4.57,
-    "angle": 54.0,
+    "release_height": 2.0,
+    "angle": 53.0,
     "speed": 7.500000000000001,
-    "spin": 23.0,
+    "spin": 14.137166941154069,
     "outcome": "swish",
     "contacts": [],
-    "reason": "through hoop at horizontal r = 0.022 m",
+    "reason": "through hoop at horizontal r = 0.014 m",
     "made": true,
-    "t_end": 1.5390249398399642,
-    "points": 1541,
-    "score_frame": 63.81999999999973
+    "t_end": 1.5024874808997177,
+    "points": 1504,
+    "score_frame": 61.20924885398304
   },
   "rim-in": {
     "dist_to_board": 4.57,
-    "angle": 44.0,
-    "speed": 7.65,
-    "spin": 23.0,
+    "release_height": 2.0,
+    "angle": 48.0,
+    "speed": 7.4,
+    "spin": 14.137166941154069,
     "outcome": "rim-in",
     "contacts": [
       "rim"
     ],
-    "reason": "through hoop at horizontal r = 0.051 m",
+    "reason": "through hoop at horizontal r = 0.063 m",
     "made": true,
-    "t_end": 1.5062848372059392,
-    "points": 1508,
-    "score_frame": 52.78000000000004
+    "t_end": 2.137081986634091,
+    "points": 2139,
+    "score_frame": 101.08491919804544
   },
   "board-in": {
     "dist_to_board": 3.4,
-    "angle": 36.0,
-    "speed": 8.150000000000002,
-    "spin": 23.0,
+    "release_height": 2.0,
+    "angle": 38.5,
+    "speed": 7.800000000000002,
+    "spin": 14.137166941154069,
     "outcome": "board-in",
     "contacts": [
       "backboard",
       "rim"
     ],
-    "reason": "through hoop at horizontal r = 0.046 m",
+    "reason": "through hoop at horizontal r = 0.040 m",
     "made": true,
-    "t_end": 1.833202182063347,
-    "points": 1835,
-    "score_frame": 80.97999999999784
+    "t_end": 1.4475078916328157,
+    "points": 1449,
+    "score_frame": 43.87047349796891
   }
 }

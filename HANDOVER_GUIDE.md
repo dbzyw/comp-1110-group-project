@@ -11,6 +11,23 @@ pip install -r requirements.txt
 
 核心依赖只有 `numpy` 和 `matplotlib`，建议 Python 3.10+。生成交互式 HTML 才需额外 `pip install plotly`。
 
+## Blender 3D 预测结果可视化（可选）
+
+预测轨迹时，Python 3D 物理引擎也会根据轨迹推断最终结局：球心向下穿过 NBA 筐顶平面（`y = 3.048 m`）且水平距离开口中心不超过 `RIM_RADIUS - BALL_RADIUS ≈ 0.10935 m` 判为命中，否则判为未中；命中再按篮板/篮筐接触历史分为 `swish`、`rim-in` 或 `board-in`。Blender 负责把已计算的轨迹和结局呈现为 3D 场景，不负责物理积分或独立判定结局。
+
+```powershell
+python validation.py data_validation\valid_data_2D.csv
+```
+
+该命令通过验证 CSV 对模型预测与记录标签进行比较；输入须包含 `actual_outcome`，格式和限制见 `data_validation/DATA_SPECIFICATION.md`。对新的一组初始条件可直接使用 `simulation.simulate_shot()`取得预测轨迹和结局。要重建仓库中现有的三种演示结局及其 Blender 动画，从项目根目录运行：
+
+```powershell
+python blender_3d\find_shots.py
+blender -b -noaudio --python blender_3d\build_blender.py
+```
+
+第一步使用 `simulate_shot()` 搜索并分类三发命中演示，导出 `blender_3d\traj_*.csv` 和 `shots.json`；第二步在 Blender 5.x 中读取这些文件、保存场景 `.blend` 并渲染静帧。若 `ffmpeg` 已加入 `PATH`，还会合成 `blender_3d\out\shot3d.mp4`。当前场景仅包含这三发预制命中示例，构景脚本尚未接通任意验证 CSV 或未中轨迹；不要将 Blender 渲染描述为模型预测的来源。
+
 ## 第二步：按顺序跑通自检
 
 ```bash

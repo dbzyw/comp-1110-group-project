@@ -34,6 +34,7 @@ The free throw is the primary case. A three-point shot comparison examines how l
 - Parameter sweeps over release angle and backspin, with launch-condition jitter, to estimate make probability (free-throw and three-point variants, 17 × 17 grids, 100 jittered shots per cell).
 - A second sweep family on the 2D layer: per-cell "scoring speed window" statistics (150 speeds across 5.5–14.5 m/s, widest-window + midpoint re-simulation) written to `data_2d*.csv`.
 - Trajectory and probability visualisations, including a free-throw versus three-point comparison, an outcome-subtype breakdown plot, and a Plotly interactive trajectory browser.
+- A Blender-based 3D presentation of physics-computed example trajectories and outcomes; Blender is a visualisation target, not a prediction or validation engine.
 - A validation pipeline that compares predicted outcomes to recorded labels without using the data to train or tune the model.
 - An interactive 2D simulator for demonstration and exploration. Its constants and collision assumptions are separate from the 3D research model.
 
@@ -57,7 +58,9 @@ Use a right-handed coordinate system in SI units:
 - `z`: lateral.
 - State vector: `[x, y, z, vx, vy, vz]`.
 
-The backboard lies in the plane `x = 0`. The rim centre is `(−0.375, 3.05, 0)` m.
+The backboard front face lies in the plane `x = 0`. The NBA rim opening centre is
+`(−0.381, 3.048, 0)` m; its steel-tube centreline sits one tube radius below the
+specified rim-top height.
 
 ### 4.2 Frozen physical constants
 
@@ -65,19 +68,35 @@ The following constants define the current 3D research model. They are hard-code
 
 | Parameter | Value |
 |---|---:|
-| Gravitational acceleration, `g` | `9.81 m/s²` |
+| Standard gravitational acceleration, `g` | `9.80665 m/s²` |
 | Air density, `rho` | `1.225 kg/m³` |
 | Drag coefficient, `C_d` | `0.50` |
 | Magnus coefficient parameter, `C_L0` | `1.00` |
-| Ball mass | `0.624 kg` |
-| Ball radius | `0.12 m` |
-| Rim height | `3.05 m` |
-| Rim diameter / radius | `0.45 m` / `0.225 m` |
-| Rim-centre distance from backboard | `0.375 m` |
-| Backboard width / height | `1.8 m` / `1.05 m` |
-| Backboard lower edge | `2.9 m` |
+| NBA men's ball mass | `0.62369 kg` (22 oz) |
+| Ball radius | `0.11925 m` (29.5-in circumference / `2π`) |
+| Rim-top height | `3.048 m` (10 ft) |
+| Rim clear opening diameter / radius | `0.4572 m` / `0.2286 m` (18 in) |
+| Rim tube diameter | `0.018 m` (midpoint of FIBA's 16–20 mm range) |
+| Rim centre to backboard front face | `0.381 m` (6-in clearance plus 9-in opening radius) |
+| NBA backboard width / height | `1.8288 m` / `1.0668 m` (72 × 42 in) |
+| Backboard lower edge | `2.8956 m` (9 ft 6 in) |
+| Backboard thickness used for rendering | `0.0127 m` (½ in) |
+| NBA target rectangle, outside dimensions | `0.6096 m` × `0.4572 m` (24 × 18 in); 2-in / `0.0508 m` markings; base aligned with rim top |
+| Net length used for rendering | `0.4191 m` (16.5 in; midpoint of the 15–18 in range) |
 | Normal coefficient of restitution, `e` | `0.7` (configurable per surface: `BACKBOARD_RESTITUTION` / `RIM_RESTITUTION`, both defaulting to 0.7) |
 | Tangential velocity retention | `TANGENTIAL_RETENTION = 1.0` (default; frictionless) |
+
+The court, ball, rim, and backboard dimensions are based on the
+[NBA Rule No. 1 equipment specifications](https://official.nba.com/rule-no-1-court-dimensions-equipment/)
+and the [2025–26 NBA playing rules](https://cdn.nba.com/manage/2026/01/Official-2025-26-NBA-Playing-Rules.pdf),
+converted to SI units. The 18 mm rim tube is an estimate: it is the midpoint of
+the 16–20 mm range in the [FIBA 2024 equipment rules](https://assets.fiba.basketball/image/upload/documents-corporate-fiba-official-rules-2024-official-basketball-rules-and-basketball-equipment.pdf),
+not an NBA-specific tube measurement. The net length is likewise the midpoint
+of the NBA-specified interval. Backboard thickness (12.7 mm) is a common
+rendering assumption, not a verified NBA requirement. Air density is standard
+sea-level air; drag, Magnus, restitution, and friction parameters remain
+simplified modelling assumptions and should not be read as official equipment
+specifications or empirically calibrated material properties.
 
 ### 4.3 Forces and integration
 
@@ -98,7 +117,7 @@ Integrate the six-component state with classical RK4 using a nominal step of `1 
 - On an approaching contact, reflect the velocity's normal component using `e = 0.7`; leave its tangential component unchanged by default (tangential retention 1.0).
 - Correct penetrated positions where needed to keep the ball outside the contacted geometry.
 - When board and rim contacts occur at the same position, `detect_all()` reports both (stable backboard-then-rim order) and `resolve_contacts()` applies material restitution once, then bounded finite rounds that only remove newly inward velocity, with iterated best-reduction position correction that stops instead of oscillating when the overlap is unsatisfiable.
-- A shot is made when the ball centre crosses downward through `y = 3.05 m` and its horizontal distance to the rim centre is no greater than `RIM_RADIUS - BALL_RADIUS = 0.105 m`.
+- A shot is made when the ball centre crosses downward through the rim-top plane (`y = 3.048 m`) and its horizontal distance to the opening centre is no greater than `RIM_RADIUS - BALL_RADIUS` (about `0.10935 m`).
 - Assign a made shot according to its contact history: no board or rim contact is `swish`; rim contact without board contact is `rim-in`; any board contact is `board-in`. All other shots are `miss`.
 
 ### 4.5 Simulation interface and outputs
@@ -107,14 +126,29 @@ The core single-shot simulation accepts release position, release velocity, back
 
 The batch and experiment interfaces accept arrays of release positions and velocities. The parameter sweep writes per-condition results to CSV for plotting; every result row carries its sweep configuration (rim distance, nominal speed, release point, seed and seed strategy, jitter σ, dt, flight time limit, bounce limit, grid counts/bounds) as metadata columns so stochastic findings stay traceable.
 
+### 4.6 Blender visualisation workflow
+
+Prediction and visualisation are separate steps. `simulation.simulate_shot()` computes the 3D trajectory and infers the outcome: a make requires the ball centre to cross downward through `y = 3.048 m` within about `0.10935 m` of the NBA rim-opening centre; otherwise the shot is a miss. A made shot is further classified from its contact history as `swish`, `rim-in`, or `board-in`. The `validation.py` pipeline runs this prediction for labelled shot records and compares it with `actual_outcome`. Blender presents the physics-computed trajectory and outcome as a 3D animation; it does not integrate the physics, independently classify shots, or calculate validation metrics.
+
+The current example workflow, run from the repository root, is:
+
+```powershell
+python blender_3d\find_shots.py
+blender -b -noaudio --python blender_3d\build_blender.py
+```
+
+`find_shots.py` searches for example `swish`, `rim-in`, and `board-in` cases using the repository's 3D simulation, which infers each outcome from the predicted path and contact history. It then writes `blender_3d\traj_*.csv` (60 fps frame samples with positions and velocities) and `blender_3d\shots.json` (shot parameters and simulated outcomes). `build_blender.py`, run by Blender 5.x, consumes those files to keyframe the scene and save `basketball_shot3d.blend`; rendered stills are written under `blender_3d\out\`. It also creates `shot3d.mp4` if `ffmpeg` is available on `PATH`. These prepared examples are all makes; the current scene does not contain a miss animation.
+
+For new initial conditions, call `simulation.simulate_shot()` to obtain the predicted path and inferred make/miss outcome. For comparison with recorded shots, run `python validation.py <shots.csv>` using the labelled validation CSV contract in §5.2. The present Blender script is wired to the three prepared example trajectories, not arbitrary validation CSVs. Visualising another prediction requires supplying its computed trajectory in the renderer's expected format and adapting the scene input as needed; do not treat a Blender render as an independent prediction or empirical validation.
+
 ## 5. Experiments and analysis
 
 ### 5.1 Parameter sweep
 
 The baseline 3D sweeps vary:
 
-- Free throw: release angle 30–70 degrees (17 values) × backspin 0–60 rad/s (17 values), nominal speed `7.5 m/s` from the standard free-throw release point `(-4.57, 2.0, 0)` — 4.57 m from the board plane, hence `rim_distance_m = 4.195` in the per-row metadata (distance from release to rim centre).
-- Three point: release angle 36–60 degrees (17 values) × backspin 0–60 rad/s (17 values), nominal speed `9.5 m/s`, release `(-7.125, 2.0, 0)`, rim distance `6.75 m`.
+- Free throw: release angle 30–70 degrees (17 values) × backspin 0–60 rad/s (17 values), nominal speed `7.5 m/s` from the NBA free-throw line at `(-4.572, 2.0, 0)` (15 ft from the backboard plane); its horizontal distance to the rim-opening centre is `4.191 m`.
+- Three point: release angle 36–60 degrees (17 values) × backspin 0–60 rad/s (17 values), nominal speed `9.5 m/s`, at the NBA arc apex `23 ft 9 in` (`7.239 m`) from the rim-opening centre; the straight-on release point is approximately `(-7.620, 2.0, 0)`.
 - Jitter per grid cell: 100 shots, with angle standard deviation `1 degree` and speed standard deviation `0.1 m/s`.
 
 Estimate make probability as the fraction of simulated shots classified as made. Run free-throw and three-point conditions separately; record each condition's distance and nominal launch speed alongside its results. Peak values may vary slightly with the random seed. Do not present the two peak probabilities as a controlled, like-for-like comparison when their nominal launch speeds differ.
@@ -143,7 +177,7 @@ Report, where the available labels support them:
 - Cohen's kappa and a no-information baseline.
 - Four-class confusion matrix and per-class measures for sufficiently detailed outcome labels.
 
-The intended empirical sources are public, anonymised NBA-style tracking data and approximately 20-30 group-member free throws recorded at 60 fps. The validation inputs are separated: `valid_data_2D.csv` contains 300 straight-on approximation rows with `release_z = v0z = 0`, using source shot speed and release angle for horizontal and vertical components; `valid_data_3D.csv` contains 35 tentative supplied-component rows. In the 3D file, positive source `x_m` was negated and `z_m`/`y_m` were tentatively mapped to release height/lateral position, but its source axes, origin, velocity units, spin, and assumed made labels remain unverified. The 2D result is 153/300 agreement (51.00%; Wilson 95% CI [45.37%, 56.61%]); the 3D result is 0/35 agreement (0.00%; Wilson 95% CI [0.00%, 9.89%]). Neither metric is empirical model validation. Dummy or self-consistency data (including `--correlated`) must not be reported as empirical validation. The final real-data validation remains pending. See `data_validation/DATA_SPECIFICATION.md` for the full contract and readiness assessment.
+The intended empirical sources are public, anonymised NBA-style tracking data and approximately 20-30 group-member free throws recorded at 60 fps. The validation inputs are separated: `valid_data_2D.csv` contains 300 straight-on approximation rows with `release_z = v0z = 0`, using source shot speed and release angle for horizontal and vertical components; `valid_data_3D.csv` contains 35 tentative supplied-component rows. In the 3D file, positive source `x_m` was negated and `z_m`/`y_m` were tentatively mapped to release height/lateral position, but its source axes, origin, velocity units, spin, and assumed made labels remain unverified. Archived pre-alignment reports record 153/300 agreement for the 2D approximation and 0/35 for the tentative 3D inputs; these metrics have not been rerun under the current NBA-aligned constants and are not empirical model validation. Dummy or self-consistency data (including `--correlated`) must not be reported as empirical validation. The final real-data validation remains pending. See `data_validation/DATA_SPECIFICATION.md` for the full contract and readiness assessment.
 
 ## 6. 2D interactive simulator
 
@@ -156,6 +190,7 @@ This is a teaching and exploration interface, not the numerical implementation o
 - Keep model constants explicit and fixed for reproducibility.
 - Use consistent SI units and the coordinate convention in this specification.
 - Preserve the distinction between simulation, parameter sweep, visualisation, and validation responsibilities.
+- Keep Blender downstream of the 3D simulation: rendered animation must reflect physics-generated trajectory data and must not be described as the source of an outcome prediction.
 - Keep validation labels and derived results traceable to their input data.
 - Document the random seed and sweep configuration when reporting stochastic results (the sweep CSVs embed this per row).
 - Run the self-check entry points after code changes: `python basketball_shot_2d.py --check`, `python experiment.py --selfcheck`, `python plotting.py selfcheck`, `python validation.py selfcheck`, plus `test_core.py` / `test_collision.py` / `test_experiment.py`.
@@ -170,10 +205,11 @@ The project is complete when it provides:
 1. A runnable Python implementation of the 3D RK4 flight model and rigid-contact shot classification.
 2. Reproducible free-throw and three-point parameter sweeps and make-probability plots (3D probability maps plus the 2D scoring-window CSV family).
 3. Trajectory plots, including a vacuum-versus-aerodynamic comparison, a free-throw-versus-three-point comparison, and an outcome-subtype breakdown figure.
-4. A working validation pipeline with documented input format and statistical outputs (Wilson CI, kappa, MCC, confusion matrices), and staged validation data with documented provenance gaps.
-5. An interactive 2D simulator (script plus no-install `.exe`), demo GIFs, an interactive HTML trajectory browser, and usage/physics documentation clearly marked as a separate model.
-6. Tests covering core flight, collision geometry, simulation outcomes, and sweep-output reproducibility.
-7. A report that presents assumptions and limitations and clearly distinguishes computed results from pending real-data validation.
+4. A Blender 3D scene and animation that visualise physics-generated example trajectories and outcomes.
+5. A working validation pipeline with documented input format and statistical outputs (Wilson CI, kappa, MCC, confusion matrices), and staged validation data with documented provenance gaps.
+6. An interactive 2D simulator (script plus no-install `.exe`), demo GIFs, an interactive HTML trajectory browser, and usage/physics documentation clearly marked as a separate model.
+7. Tests covering core flight, collision geometry, simulation outcomes, and sweep-output reproducibility.
+8. A report that presents assumptions and limitations and clearly distinguishes computed results from pending real-data validation.
 
 ## 9. Related project documents
 

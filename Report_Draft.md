@@ -88,10 +88,10 @@ Repeating the sweep at three-point range (6.75 m, release speed 9.5 m/s, angle g
 
 A second experiment aims the ball “as if in a vacuum” (only gravity) at the rim centre, then re-runs the same release with drag and backspin (figures: `trajectory_comparison.png`, `trajectory_comparison_three.png`, `free_vs_three_drag.png`). The result is a systematic shortfall relative to the ideal trajectory:
 
-- With air resistance the ball reaches the rim plane **≈ 40.2 cm low** for a free throw.
-- The same comparison at three-point range shows a shortfall of **≈ 117.4 cm low**.
+- With air resistance the ball reaches the rim plane **≈ 42.5 cm low** for a free throw.
+- The same comparison at three-point range shows a shortfall of **≈ 119.5 cm low**.
 
-A nominal free throw (7.5 m/s, 51°, 23 rad/s) is classified as a **swish** with a horizontal offset of ≈ 5.5 cm from the rim centre.
+A nominal free throw (7.5 m/s, 51°, 14.137167 rad/s) is classified as a **swish** with a horizontal offset of ≈ 1.5 cm from the rim centre.
 
 This is the key comparative result: longer release distance increases flight time and speed, so both quadratic drag and the spin-dependent Magnus lift accumulate more deviation, making them materially more important for three-point shots.
 

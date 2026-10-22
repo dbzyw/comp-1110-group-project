@@ -25,6 +25,7 @@ import math
 
 import numpy as np
 
+from data_validation.data_prep import DEFAULT_BACKSPIN_RAD_S
 from physics import rk4_step, spin_vector, release_velocity, BALL_RADIUS
 from collision import (detect_all, resolve_contacts,
                        RIM_HEIGHT, RIM_RADIUS, RIM_CENTER, BACKBOARD_X)
@@ -493,7 +494,7 @@ if __name__ == "__main__":
     RELEASE_HEIGHT = 2.0         # 出手高度 [m]
     SPEED = 7.5                  # 出手速率 [m/s]
     ANGLE_DEG = 51.0             # 出手仰角 [deg]
-    BACKSPIN = 23.0              # 后旋 [rad/s]
+    BACKSPIN = DEFAULT_BACKSPIN_RAD_S  # 后旋 [rad/s]
 
     release_pos = np.array([-FREE_THROW_DISTANCE, RELEASE_HEIGHT, 0.0])
     v0 = release_velocity(SPEED, ANGLE_DEG)
@@ -526,12 +527,12 @@ if __name__ == "__main__":
     print("2D 模拟器自检（与 basketball_shot_2d.py 同源，库版 2D 引擎）")
     print("=" * 70)
     scenes = [
-        ("01_free_throw_swish",  2.00, 51.0, 23.0, 7.90, FREE_THROW_2D, True,  "SWISH"),
-        ("02_bank_shot",         2.00, 36.0, 23.0, 9.10, FREE_THROW_2D, True,  "BANK-IN"),
-        ("03_rattle_in",         2.00, 36.0, 23.0, 8.70, FREE_THROW_2D, True,  "RATTLE-IN"),
-        ("04_short_miss",        2.00, 51.0, 23.0, 6.00, FREE_THROW_2D, True,  "well short"),
-        ("05_air_off",           2.00, 51.0, 23.0, 7.90, FREE_THROW_2D, False, "BANK-IN"),
-        ("06_three_pointer",     2.00, 45.0, 23.0, 9.46, THREE_POINT_2D,      True,  "SWISH"),
+        ("01_free_throw_swish",  2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FREE_THROW_2D, True,  "SWISH"),
+        ("02_bank_shot",         2.00, 36.0, DEFAULT_BACKSPIN_RAD_S, 9.10, FREE_THROW_2D, True,  "RATTLE-IN"),
+        ("03_rattle_in",         2.00, 36.0, DEFAULT_BACKSPIN_RAD_S, 8.70, FREE_THROW_2D, True,  "off the rim, out"),
+        ("04_short_miss",        2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 6.00, FREE_THROW_2D, True,  "well short"),
+        ("05_air_off",           2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FREE_THROW_2D, False, "BANK-IN"),
+        ("06_three_pointer",     2.00, 45.0, DEFAULT_BACKSPIN_RAD_S, 9.46, THREE_POINT_2D,      True,  "SWISH"),
     ]
     print(f"{'scene':<20}{'outcome':<24}{'expected':<12}{'entry':>9}{'apex':>9}{'board/rim':>11}")
     ok = 0
@@ -546,11 +547,11 @@ if __name__ == "__main__":
               f"{r2['peak']:>9.2f}{collide:>11}  {'OK' if match else 'DIVERGE'}")
     print(f"\n场景复原: {ok}/{len(scenes)} 与 SIMULATION_2D_DEMOS.md 一致")
 
-    r2 = simulate_2d(2.00, 51.0, 23.0, 7.90, FREE_THROW_2D)
-    ro = readout_2d(r2, 2.00, 51.0, 23.0, 7.90, FREE_THROW_2D)
+    r2 = simulate_2d(2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FREE_THROW_2D)
+    ro = readout_2d(r2, 2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FREE_THROW_2D)
     out_2d = "trajectory_2d.csv"
     save_2d_csv(out_2d, r2)
-    print(f"\n罚球基准场景 2.00 m / 51° / 23 rad/s / 7.90 m/s / 4.60 m:")
+    print(f"\n罚球基准场景 2.00 m / 51° / {DEFAULT_BACKSPIN_RAD_S:.6f} rad/s / 7.90 m/s / 4.60 m:")
     print(f"  结局       = {r2['outcome']}   (归一化 = {ro['canonical']})")
     print(f"  hang time  = {ro['hang_time']:.2f} s   入筐角 = {ro['entry_angle']:.1f}°")
     print(f"  最高点     = {ro['apex']:.2f} m ({ro['apex_vs_rim']:+.2f} vs 筐沿)")
@@ -577,7 +578,7 @@ if __name__ == "__main__":
 
     print("\n[检查] 使用统一的 3D / 2D simulation 实现。")
     try:
-        simulate_2d(2.00, 51.0, 23.0, 7.90, FREE_THROW_2D, opening_margin=0.30)
+        simulate_2d(2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FREE_THROW_2D, opening_margin=0.30)
         print("  opening_margin=0.30 m: 未拒绝 (应检查输入校验)")
         raise SystemExit(1)
     except ValueError as e:

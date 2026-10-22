@@ -44,6 +44,8 @@ import math
 
 import numpy as np
 
+from data_validation.data_prep import DEFAULT_BACKSPIN_RAD_S
+
 # ---------------------------------------------------------------------------
 # 物理常数 (与 physics.py 完全相同 — 常数冻结, 不可随扫描结果调整)
 # ---------------------------------------------------------------------------
@@ -480,7 +482,7 @@ def curvature_flatten_pct_2d(h0: float, angle_deg: float, v: float,
 if __name__ == "__main__":
     r0 = np.array([0.0, 2.0, 0.0])
     v0 = release_velocity(7.1, 51.0)
-    times, states = integrate(r0, v0, backspin_rate=23.0, t_max=2.0)
+    times, states = integrate(r0, v0, backspin_rate=DEFAULT_BACKSPIN_RAD_S, t_max=2.0)
 
     pos = states[:, 0:3]
     vel = states[:, 3:6]
@@ -502,7 +504,7 @@ if __name__ == "__main__":
 
     assert np.all(np.isfinite(states)), "integrate produced non-finite states"
     assert np.all(np.isfinite(acceleration_batch(
-        np.tile(v0, (10, 1)), spin_vector(23.0)))), "batch acceleration is non-finite"
+        np.tile(v0, (10, 1)), spin_vector(DEFAULT_BACKSPIN_RAD_S)))), "batch acceleration is non-finite"
     print("\n[检查] 3D integration and batched acceleration returned finite results")
 
     print("\n" + "=" * 70)
@@ -516,7 +518,7 @@ if __name__ == "__main__":
     print(f"BM_2D            = {MAGNUS_PARAM_2D:.6e}")
     print(f"RIM_RADIUS_2D    = {RIM_RADIUS_2D} m")
 
-    h0, ang, spin, v, dist = 2.00, 51.0, 23.0, 7.90, FREE_THROW_2D
+    h0, ang, spin, v, dist = 2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FREE_THROW_2D
     drag, magnus, wz = air_load_2d(v, spin, ang)
     print(f"\n出手样例         : {h0:.2f} m / {ang:.0f}° / {spin:.0f} rad/s / "
           f"{v:.2f} m/s / {dist:.2f} m   (omega_z = {wz:.2f} rad/s)")

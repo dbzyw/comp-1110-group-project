@@ -30,6 +30,8 @@ from pathlib import Path
 
 import numpy as np
 
+from data_validation.data_prep import DEFAULT_BACKSPIN_RAD_S
+
 from simulation import simulate_shot
 
 # 结局标签 -> made / miss 归一化
@@ -367,7 +369,7 @@ def make_dummy_data(csv_path="dummy_data.csv", n=20, seed=0, correlated=False):
             v0y = speed * np.sin(angle)
             v0z = rng.normal(0.0, 0.05)
 
-            backspin = 23.0 + rng.normal(0.0, 3.0)
+            backspin = DEFAULT_BACKSPIN_RAD_S + rng.normal(0.0, 3.0)
 
             if correlated:
                 # 自洽: 用模型结果当"真实结果"

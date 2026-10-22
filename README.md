@@ -286,7 +286,7 @@ python make_interactive.py --offline --out basketball_interactive_offline.html
 | 文件 | 生成方式 | 内容 |
 |---|---|---|
 | `trajectory.csv` | `python simulation.py` | 单发 3D 罚球轨迹，列为 `time, x, y, z, vx, vy, vz` |
-| `trajectory_2d.csv` | `python simulation.py` | 2D 罚球基准场景（2.00 m / 51° / 23 rad/s / 7.90 m/s / 4.60 m）的轨迹点 |
+| `trajectory_2d.csv` | `python simulation.py` | 2D 罚球基准场景（2.00 m / 51° / 14.137167 rad/s / 7.90 m/s / 4.60 m）的轨迹点 |
 | `data.csv` | `python experiment.py`（或 `free`） | 3D 罚球扫描结果，列为 `angle, backspin, p_make, p_swish, p_rim_in, p_board_in` + 每行附带扫描配置元数据（距离、名义速度、随机种子、抖动 σ、网格范围等） |
 | `data_three.csv` | `python experiment.py`（或 `three`） | 3D 三分球扫描结果，列结构同上 |
 | `data_2d.csv` / `data_2d_three.csv` | `python experiment.py`（或 `2d`） | 2D 每格统计：`p_speed_made`、各结局占比、最宽"必中速度窗口" `band_lo/hi/width/mid`、中点精确结局 |

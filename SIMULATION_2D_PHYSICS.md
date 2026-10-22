@@ -129,7 +129,7 @@
 | 进球判据 | 穿面 + 筐口内 12 mm 余量，结局 SWISH/BANK-IN/RATTLE-IN | 距筐心 ≤ RIM_RADIUS − BALL_RADIUS = 0.105 m，结局 swish/rim-in/board-in/miss |
 | 定位 | 交互演示 / 教学可视化 | 批量实验、概率热力图、验证链路 |
 
-两套代码的峰值参数（51°/23 rad/s 附近可命中）定性一致，但**具体数值不可直接互换**：
+两套代码的基准参数（51°/14.137167 rad/s 附近可命中）定性一致，但**具体数值不可直接互换**：
 常数、碰撞模型和判据都不同。报告里引用数值时务必注明出处是哪套模型。2D 的三种
 "进"名可用 `collision.canonical_outcome_2d()` 归一化到 3D 的 `swish/board-in/rim-in`
 （miss → `miss`），仅用于统一标签空间。

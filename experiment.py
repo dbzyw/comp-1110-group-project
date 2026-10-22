@@ -33,6 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
+from data_validation.data_prep import DEFAULT_BACKSPIN_RAD_S
 from physics import rk4_step_batch, BALL_RADIUS
 from collision import (detect_backboard_batch, detect_rim_batch,
                        RESTITUTION, RIM_HEIGHT, RIM_RADIUS,
@@ -920,7 +921,7 @@ if __name__ == "__main__":
             print("  [XX] 2D run_sweep_2d: CSV 不一致")
         expected_keys = {"made", "swish", "bank_in", "rattle_in",
                          "hit_board", "hit_edge", "edge_ct", "plane_h"}
-        keys = set(batch_simulate_2d(2.0, 51.0, 23.0, 7.9,
+        keys = set(batch_simulate_2d(2.0, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.9,
                                      FREE_THROW_2D).keys())
         if expected_keys <= keys:
             ok += 1

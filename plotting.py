@@ -30,6 +30,7 @@ import matplotlib
 matplotlib.use("Agg")                       # 无 GUI 环境直接保存图片
 import matplotlib.pyplot as plt
 
+from data_validation.data_prep import DEFAULT_BACKSPIN_RAD_S
 from physics import G, release_velocity, integrate
 from collision import RIM_HEIGHT, RIM_CENTER, BACKBOARD_X, RIM_TO_BOARD
 
@@ -217,14 +218,14 @@ def plot_outcome_breakdown(csv_path=DATA_CSV, out_png="outcome_breakdown.png", d
 # 出手条件 (真空 vs 真实轨迹对比)
 X0, Y0 = -4.57, 2.0          # 出手点 (距篮板 4.57 m, 高 2.0 m)
 V0 = 7.3                      # 出手速率 [m/s]; 选 7.3 使真空瞄准仰角≈55°, 接近自然罚球弧线
-BACKSPIN = 23.0               # 后旋 [rad/s]
+BACKSPIN = DEFAULT_BACKSPIN_RAD_S  # 后旋 [rad/s]
 
 # 三分球出手条件 (FIBA 三分线距筐心 6.75 m)
 THREE_DIST = 6.75                        # 三分线到筐心水平距离 [m]
 THREE_X0 = -(THREE_DIST + RIM_TO_BOARD)  # 出手点 x = -7.125 m (距篮板 7.125 m)
 THREE_Y0 = 2.0                           # 出手高度 [m], 与罚球一致以隔离距离影响
 THREE_V0 = 8.9                           # 出手速率 [m/s]; 使真空瞄准仰角≈55°, 与罚球接近
-THREE_BACKSPIN = 23.0                    # 后旋 [rad/s], 与罚球一致
+THREE_BACKSPIN = DEFAULT_BACKSPIN_RAD_S  # 后旋 [rad/s], 与罚球一致
 
 
 def vacuum_launch_angle(x0, y0, x1, y1, v):

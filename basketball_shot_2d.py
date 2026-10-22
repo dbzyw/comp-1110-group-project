@@ -25,6 +25,8 @@ from matplotlib.patches import Rectangle, Circle
 from matplotlib.widgets import Slider, Button
 from matplotlib.animation import FuncAnimation
 
+from data_validation.data_prep import DEFAULT_BACKSPIN_RAD_S
+
 # ============ frozen model constants (COMP1110 deck) ============
 R = 0.12; M = 0.60; AREA = math.pi * R * R
 RHO = 1.204; CD = 0.47; CL = 0.20; GRAV = 9.81
@@ -54,12 +56,12 @@ DEG = "°"
 # 与 SIMULATION_2D_DEMOS.md / simulation.py __main__ 相同的 6 个典型场景
 # (name, h0, angle, spin, v, dist, air, expected outcome)
 DEMO_SCENES = [
-    ("01_free_throw_swish", 2.00, 51.0, 23.0, 7.90, FT_DIST, True,  "SWISH"),
-    ("02_bank_shot",        2.00, 36.0, 23.0, 9.10, FT_DIST, True,  "BANK-IN"),
-    ("03_rattle_in",        2.00, 36.0, 23.0, 8.70, FT_DIST, True,  "RATTLE-IN"),
-    ("04_short_miss",       2.00, 51.0, 23.0, 6.00, FT_DIST, True,  "well short"),
-    ("05_air_off",          2.00, 51.0, 23.0, 7.90, FT_DIST, False, "BANK-IN"),
-    ("06_three_pointer",    2.00, 45.0, 23.0, 9.46, PT_DIST, True,  "SWISH"),
+    ("01_free_throw_swish", 2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FT_DIST, True,  "SWISH"),
+    ("02_bank_shot",        2.00, 36.0, DEFAULT_BACKSPIN_RAD_S, 9.10, FT_DIST, True,  "RATTLE-IN"),
+    ("03_rattle_in",        2.00, 36.0, DEFAULT_BACKSPIN_RAD_S, 8.70, FT_DIST, True,  "off the rim, out"),
+    ("04_short_miss",       2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 6.00, FT_DIST, True,  "well short"),
+    ("05_air_off",          2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FT_DIST, False, "BANK-IN"),
+    ("06_three_pointer",    2.00, 45.0, DEFAULT_BACKSPIN_RAD_S, 9.46, PT_DIST, True,  "SWISH"),
 ]
 
 
@@ -578,7 +580,7 @@ def update_info(axp, params, res, window):
 # ============ interactive app ============
 
 def main():
-    params = [2.00, 45.0, 23.0, 8.41, FT_DIST]
+    params = [2.00, 45.0, DEFAULT_BACKSPIN_RAD_S, 8.41, FT_DIST]
     store = dict(res=None, window=None, anim=None, playing=False,
                  air=True, real=True, ideal=True, slow=False, loop=True)
 
@@ -628,7 +630,7 @@ def main():
 
     sh = sld(0.045, 0.245, "release height (m)",  1.40, 2.60, 2.00, 0)
     sa = sld(0.045, 0.180, "release angle (deg)", 30.0, 70.0, 45.0, 1, valfmt="%.0f")
-    ss = sld(0.045, 0.115, "backspin (rad/s)",     0.0, 40.0, 23.0, 2, valfmt="%.0f")
+    ss = sld(0.045, 0.115, "backspin (rad/s)",     0.0, 40.0, DEFAULT_BACKSPIN_RAD_S, 2, valfmt="%.1f")
     sv = sld(0.345, 0.245, "launch speed (m/s)",   5.5, 14.5, 8.41, 3)
     sd = sld(0.345, 0.180, "rim distance (m)",     4.20, 7.20, FT_DIST, 4)
 
@@ -663,7 +665,7 @@ def main():
                      size=12, bold=True)
     b_scan  = mk_btn(0.802, 0.245, 0.148, 0.055, "SCAN WINDOW", hover="#7A4CBF")
     b_ft    = mk_btn(0.660, 0.180, 0.13, 0.05, "FREE THROW")
-    b_pk    = mk_btn(0.802, 0.180, 0.148, 0.05, "PEAK CELL 51°/23")
+    b_pk    = mk_btn(0.802, 0.180, 0.148, 0.05, "PEAK CELL 51°/14.1")
     b_3p    = mk_btn(0.660, 0.115, 0.13, 0.05, "THREE POINT")
     b_tl    = mk_btn(0.802, 0.115, 0.07, 0.05, "2.30 m")
     b_sm    = mk_btn(0.880, 0.115, 0.07, 0.05, "1.60 m")
@@ -690,11 +692,11 @@ def main():
         store["window"] = None
         sh.set_val(h); sa.set_val(a); ss.set_val(sp); sv.set_val(vv); sd.set_val(dd)
 
-    def on_ft(_):    set_all(2.00, 51.0, 23.0, 7.90, FT_DIST)
-    def on_3p(_):    set_all(2.00, 45.0, 23.0, 9.46, PT_DIST)
-    def on_pk(_):    set_all(2.00, 51.0, 23.0, 7.90, FT_DIST)
-    def on_tl(_):    set_all(2.30, 51.0, 23.0, 7.50, FT_DIST)
-    def on_sm(_):    set_all(1.60, 51.0, 23.0, 8.65, FT_DIST)
+    def on_ft(_):    set_all(2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FT_DIST)
+    def on_3p(_):    set_all(2.00, 45.0, DEFAULT_BACKSPIN_RAD_S, 9.46, PT_DIST)
+    def on_pk(_):    set_all(2.00, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.90, FT_DIST)
+    def on_tl(_):    set_all(2.30, 51.0, DEFAULT_BACKSPIN_RAD_S, 7.50, FT_DIST)
+    def on_sm(_):    set_all(1.60, 51.0, DEFAULT_BACKSPIN_RAD_S, 8.65, FT_DIST)
     b_ft.on_clicked(on_ft); b_3p.on_clicked(on_3p); b_pk.on_clicked(on_pk)
     b_tl.on_clicked(on_tl); b_sm.on_clicked(on_sm)
 

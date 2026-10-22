@@ -9,12 +9,14 @@
 
 | GIF | 参数（高度 m / 角度° / 后旋 rad/s / 速度 m/s / 距离 m） | 结局 | 看点 |
 |---|---|---|---|
-| [`01_free_throw_swish.gif`](demo_gifs/01_free_throw_swish.gif) | 2.00 / 51 / 23 / 7.90 / 4.60 | **SWISH** | 罚球基准情形：真实弧线（青）比真空抛物线（紫）平缓，空心入筐 |
-| [`02_bank_shot.gif`](demo_gifs/02_bank_shot.gif) | 2.00 / 36 / 23 / 9.10 / 4.60 | **BANK-IN** | 低平打板：球撞板反弹后落进筐，青色弧线在碰撞点分出第二段 |
-| [`03_rattle_in.gif`](demo_gifs/03_rattle_in.gif) | 2.00 / 36 / 23 / 8.70 / 4.60 | **RATTLE-IN** | 弹筐：球先后磕筐沿反弹（白方框标记）最终滚进 |
-| [`04_short_miss.gif`](demo_gifs/04_short_miss.gif) | 2.00 / 51 / 23 / 6.00 / 4.60 | miss（well short） | 力量太小：`x` 从未到达 4.60 m 的筐面平面（`plane_h` 为空），未碰任何东西直接落地 |
-| [`05_air_off.gif`](demo_gifs/05_air_off.gif) | 2.00 / 51 / 23 / 7.90 / 4.60（AIR OFF） | **BANK-IN** | 同 01 的参数但关掉空气：没有阻力/升力时同样的出手变成打板进——直观展示空气对命中与否的影响 |
-| [`06_three_pointer.gif`](demo_gifs/06_three_pointer.gif) | 2.00 / 45 / 23 / 9.46 / 6.75 | **SWISH** | 2D 演示预设三分场景（6.75 m）：需要更大的出手速度（9.46 vs 7.90 m/s），选用 45° 弧线。该演示参数不代表 2D 扫描最优值，也不与 3D 参数扫描的峰值角度直接比较。 |
+| [`01_free_throw_swish.gif`](demo_gifs/01_free_throw_swish.gif) | 2.00 / 51 / 14.137167 / 7.90 / 4.60 | **SWISH** | 罚球基准情形：真实弧线（青）比真空抛物线（紫）平缓，空心入筐 |
+| [`02_bank_shot.gif`](demo_gifs/02_bank_shot.gif) | 2.00 / 36 / 14.137167 / 9.10 / 4.60 | **RATTLE-IN** | 较低后旋下该场景碰筐后入筐；当前结局与 GIF 的旧版参数不一致 |
+| [`03_rattle_in.gif`](demo_gifs/03_rattle_in.gif) | 2.00 / 36 / 14.137167 / 8.70 / 4.60 | **off the rim, out** | 该场景触筐后弹出；当前结局与 GIF 的旧版参数不一致 |
+| [`04_short_miss.gif`](demo_gifs/04_short_miss.gif) | 2.00 / 51 / 14.137167 / 6.00 / 4.60 | miss（well short） | 力量太小：`x` 从未到达 4.60 m 的筐面平面（`plane_h` 为空），未碰任何东西直接落地 |
+| [`05_air_off.gif`](demo_gifs/05_air_off.gif) | 2.00 / 51 / 14.137167 / 7.90 / 4.60（AIR OFF） | **BANK-IN** | 同 01 的参数但关掉空气：没有阻力/升力时同样的出手变成打板进 |
+| [`06_three_pointer.gif`](demo_gifs/06_three_pointer.gif) | 2.00 / 45 / 14.137167 / 9.46 / 6.75 | **SWISH** | 2D 演示预设三分场景（6.75 m）：需要更大的出手速度（9.46 vs 7.90 m/s），选用 45° 弧线。该演示参数不代表 2D 扫描最优值，也不与 3D 参数扫描的峰值角度直接比较。 |
+
+现存 GIF 是更改默认后旋前导出的，第二、第三个场景的 GIF 仍对应旧结局；重新导出前请以代码的 `--check` 结局为准。
 
 ## 预览（GitHub / VS Code 内直接渲染）
 

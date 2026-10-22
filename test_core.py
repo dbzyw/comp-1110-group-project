@@ -7,6 +7,7 @@ test_core.py — 核心物理 / 碰撞 / 模拟的单元测试。
 
 import numpy as np
 
+from data_validation.data_prep import DEFAULT_BACKSPIN_RAD_S
 from physics import (
     gravity_force, drag_force, magnus_force, release_velocity, spin_vector,
     BALL_MASS, G,
@@ -37,7 +38,7 @@ def test_drag_opposes_velocity_and_scales_with_v2():
 
 
 def test_magnus_backspin_gives_upward_lift():
-    omega = spin_vector(23.0)              # 后旋 (0,0,+ω)
+    omega = spin_vector(DEFAULT_BACKSPIN_RAD_S)  # 后旋 (0,0,+ω)
     v = np.array([7.0, 1.0, 0.0])          # 前上方速度
     fm = magnus_force(v, omega)
     assert fm[1] > 0.0, "后旋应产生向上升力"
@@ -102,13 +103,13 @@ def test_rim_clip_detected():
 # ---------------------------------------------------------------------------
 def test_simulate_swish():
     v0 = release_velocity(7.5, 51.0)
-    res = simulate_shot([-4.57, 2.0, 0.0], v0, 23.0)
+    res = simulate_shot([-4.57, 2.0, 0.0], v0, DEFAULT_BACKSPIN_RAD_S)
     assert res["outcome"] == "swish", f"预期 swish, 实得 {res['outcome']}"
 
 
 def test_simulate_dt_guard():
     try:
-        simulate_shot([-4.57, 2.0, 0.0], [4.7, 5.8, 0.0], 23.0, dt=0.1)
+        simulate_shot([-4.57, 2.0, 0.0], [4.7, 5.8, 0.0], DEFAULT_BACKSPIN_RAD_S, dt=0.1)
         raise AssertionError("dt=0.1 应触发 ValueError")
     except ValueError:
         pass
@@ -116,7 +117,7 @@ def test_simulate_dt_guard():
 
 def test_simulate_floor_validation():
     try:
-        simulate_shot([-4.57, -1.0, 0.0], [4.7, 5.8, 0.0], 23.0)
+        simulate_shot([-4.57, -1.0, 0.0], [4.7, 5.8, 0.0], DEFAULT_BACKSPIN_RAD_S)
         raise AssertionError("出手点 y<0 应触发 ValueError")
     except ValueError:
         pass

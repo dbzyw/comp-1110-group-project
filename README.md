@@ -58,6 +58,7 @@
 - **碰撞检测**：篮板（平面-球碰撞）与篮筐（圆环-球碰撞），支持球心在矩形外时的篮板边缘/角落接触，支持批量检测与穿透位置校正——原理与改进方向见 [Collision.md](Collision.md)
 - **恢复系数**：碰撞使用恢复系数反弹（法向 `e = 0.7`；3D 默认切向保留比例 1.0，2D 层切向乘 0.85）
 - **命中结局细分**：3D 流程按碰撞历史输出 `swish` / `rim-in` / `board-in` / `miss`；2D 流程输出 `SWISH` / `BANK-IN` / `RATTLE-IN` 与各种 miss 描述，两套名称可通过 `collision.canonical_outcome_2d()` 归一化对接
+- **Blender 3D 可视化**（`blender_3d/`）：用 Blender 5.x 把 3D 主流程的飞行（后旋马格升力 + 二次空气阻力 + 碰撞恢复糰数 e=0.7）烘焙成 60 fps 逐帧动画，场景含 2.00 m 人物、3.05 m 篮篘与節板；产物 `out/shot3d.mp4`（1280×720）与 `basketball_shot3d.blend`，连续演出 swish / board-in / rim-in 三发；场景与渲染脚本见 § 5.4
 - **交互式 HTML 轨迹浏览器**（`basketball_interactive.html`）：Plotly 生成的 (角度 × 后旋) 扫描动画（5 个角度 × 5 个后旋、固定 7.5 m/s 罚球出手），队友浏览器双击即可查看，无需 Python；`python make_interactive.py --offline` 可生成不依赖网络的完整内嵌版
 - **命中概率热力图**：覆盖出手角度 × 后旋速率的参数扫描，输出命中概率面（3D 蒙特卡洛 + 2D "必中速度窗口"两套）
 - **结局占比分解图**：`outcome_breakdown.png`，swish / rim-in / board-in 占比随参数的变化
@@ -110,6 +111,22 @@ omega = (0, 0, +omega)
 
 这样会产生一个向上的 Magnus 升力，因此后旋越大，球越容易"托起来"。
 
+### 5.4 Blender 3D 可视化（`blender_3d/`）
+
+三发 3D 投篮（全部由主流程判为 made，常数与几何完全沿用 § 5 的 3D 主流程，出手高度 2.00 m 对应场景中 2.00 m 人物）：
+
+| 发数 | 参数 | 碰撞序列 | 判定 |
+|---|---|---|---|
+| swish | 7.5 m/s @ 54°，距節板 4.57 m | 无 | 穿篮偏移 r = 0.022 m |
+| board-in | 8.15 m/s @ 36°，距節板 3.4 m | backboard → rim | e = 0.70 反弹后进 |
+| rim-in | 7.65 m/s @ 44°，距節板 4.57 m | rim | 弹篮沿后进 |
+
+- `find_shots.py`（可从任意目录跑，内部把上层目录加入 `sys.path`，直接 import 仓库的 `physics.py` / `collision.py` / `simulation.py`）：扫参数选出上述三发，用 `simulate_shot`（dt = 1 ms RK4 + 碰撞循环）生成轨迹，导出 `traj_*.csv`（`frame,x,y,z,vx,vy,vz`，60 fps 帧号列）与 `shots.json`
+- `build_blender.py`（Blender 5.x 内嵌 Python，可无头跑 `blender -b -noaudio --python blender_3d/build_blender.py`）：读取 CSV 与 `shots.json`，按 60 fps 逐帧烘焙篮位置与后旋姿态关键帧（钱库坐标→Blender 映射 x→X, y→Z, z→−Y，自旋角度 = −ωt），建立人物 / 節板（带内外瞩梶线）/ 篮篘与篮网 / 筓平线标注，Eevee 渲某 1280×720 并用 ffmpeg 合成 `out/shot3d.mp4`（413 帧，段落 1–93 / 138–248 / 293–383，间隙 45 帧）
+- 进殷后的篮下落为近似处理：从碰撞循环停止点继续纯籴 RK4 积分到篮心触地，不再模拟篮网与篮沿下方的二次碰撞
+
+与 § 4 的两常数体系一致：本展示全部取自 3D 主流程常数，不得与 2D 层结果混用。
+
 ## 6. 文件结构
 
 | 文件 | 作用 |
@@ -131,6 +148,11 @@ omega = (0, 0, +omega)
 | `SIMULATION_2D_PHYSICS.md` | 2D 模拟器物理模型与常数（含与 3D 流程的差异说明） |
 | `Collision.md` | 碰撞模型的计算方法、测试与改进方向 |
 | `requirements.txt` | Python 依赖列表 |
+| `blender_3d/build_blender.py` | Blender 5.x 场景搭建 + 60 fps 逐帧烘焙 + 无头渲某脚本（只读 CSV/JSON，不 import 仓库模块） |
+| `blender_3d/find_shots.py` | 扫选三发 made 结局并导出 `traj_*.csv` / `shots.json`（import 上层 `physics`/`collision`/`simulation`） |
+| `blender_3d/basketball_shot3d.blend` | 完整 3D 场景（三发连投，413 帧 @ 60 fps，含已成关键帧） |
+| `blender_3d/out/shot3d.mp4` | 渲某成品动画（1280×720，60 fps，约 6.9 s） |
+| `blender_3d/out/qc_*.png` 与 `verify_*.png` | 各发出手 / 中段 / 碰撞瞬间 / 判分日静帧（1280×720） |
 | `HANDOVER_GUIDE.md` | 交接说明与运行顺序 |
 | `PROJECT_CONTEXT.md` | 给协作者/AI 助手的背景说明 |
 

@@ -127,6 +127,18 @@ omega = (0, 0, +omega)
 
 与 § 4 的两常数体系一致：本展示全部取自 3D 主流程常数，不得与 2D 层结果混用。
 
+视频与静帧展示（均取自 `blender_3d/out/`，60 fps、1280×720，三发连投 swish → board-in → rim-in）：
+
+[![Blender 3D 投篮动画 shot3d.mp4](blender_3d/out/shot3d.mp4)](blender_3d/out/shot3d.mp4)
+
+![SWISH：空心穿篮，判定瞬间穿篮偏移 r = 0.022 m，全程无接触](blender_3d/out/qc_swish_score.png)
+
+![BOARD-IN：撞篮板瞬间（e = 0.70 反弹，随后蹭篮沿进）](blender_3d/out/qc_board-in_contact_board.png)
+
+![RIM-IN：弹前篮沿后穿篮](blender_3d/out/qc_rim-in_contact_rim.png)
+
+> 视频链接在 GitHub 会内联播放；每发出手 / 中段 / 碰撞瞬间 / 判定日与落地帧的完整静帧见 `blender_3d/out/qc_*`。
+
 ## 6. 文件结构
 
 | 文件 | 作用 |
